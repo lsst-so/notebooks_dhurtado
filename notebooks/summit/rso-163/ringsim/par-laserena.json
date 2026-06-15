@@ -1,0 +1,42 @@
+{"__comment__":"RINGSS La Serena, 2023-01-16",
+"telescope":{"D":0.127,"eps":0.53,"pixel":1.58,"pdist":531,"ringradpix":10.8,"ron":1.1},
+ "site":{"name":"LS","lon":-70.8065,"lat":-30.1684},
+ "profrest":
+ {"mmax":20,"zgrid":[0,250,500,1000,2000,4000,8000,16000],
+  "wav":[500,525,550,575,600,625,650,675,700,725,750],
+  "sp":[0.65,0.774,0.755,0.73,0.704,0.673,0.617,0.568,0.495,0.427,0.3],
+  "weightfile":"weights.json",
+  "zmat":"zmat.json",
+  "starcat":"starcat.json"},
+  "Camera":{
+        "library_path":"/usr/local/lib/libASICamera2.so",
+        "snapshot":{
+            "exposure_time":10,
+            "gain":200,
+            "brightness":10,
+            "bandwidth":80,
+            "roi_x0":448,
+            "roi_y0":28,
+            "roi_width":1024,
+            "roi_height":1024,
+            "snapshot_fn":"snapshot.fits",
+            "save_snapshot":0
+        },
+        "cube":{
+            "number":2000,
+            "max_attempts":10,
+            "exposure_time":1,
+            "gain":200,
+            "brightness":10,
+            "bandwidth":80,
+            "roi_x0":936,
+            "roi_y0":516,
+            "roi_width":48,
+            "roi_height":48,
+            "cube_fn":"cube.fits",
+            "save_cube":0,
+            "imavg_fn":"imavg.fits",
+            "save_imavg":0,
+            "flux_thr":10000
+        } }
+}
