@@ -127,3 +127,16 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Personal ignores
+*.gif
+*.jpg
+*.jpeg
+*.npz
+*.pdf
+*.tiff
+*.tif
+*.fit
+*.fits
+*/adam/
+*/andrei/
