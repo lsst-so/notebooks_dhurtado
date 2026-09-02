@@ -32,3 +32,10 @@ Tests
 =====
 
 Unit tests should be stored in the tests directory.
+
+Workspace Overview
+==================
+
+1. Weekly branches names reference the week number by ISO 8601 (YYYY-MM-DD hh:mm:ss.ms), as well as all other dates within scripts unless stated otherwise.
+2. For code standards, we should follow PEP-8 as reference.
+3. Anyother necesary disclaimer will be added later.
