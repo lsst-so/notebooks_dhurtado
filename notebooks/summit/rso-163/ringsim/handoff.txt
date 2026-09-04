@@ -1,176 +1,80 @@
 ================================================================================
 RINGSS SIMULATION + REDUCTION PIPELINE — HANDOFF / DOCUMENTATION
 ================================================================================
-Last updated: 2026-09-02
---------------------------------------------------------------------------------
-1. PIPELINE OVERVIEW
---------------------------------------------------------------------------------
-IDL step (testsimul.pro)          Notebook cell (### header)     Status
--------------------------------   ----------------------------   ------------
-set seeing/zlow/zhigh/...          sim1.par + next cell          DONE
-readpar('sim1.par')                (params hard-coded)           PARTIAL (no par dict)
-r0, tint                           pixscale/r0 cell              DONE
-simatm -> screen                   ### Simatm                    DONE
-ringsim -> cube                    ### ringsim.pro               DONE (see bugs)
-writefits 'cube.fits'              ### writefits.pro             DONE
-cubecoef -> coef, impar            ### cubecoef.pro              DONE (see bugs)
-statmom -> pow,cov,rrms,rnoise     ### statmom.pro               DONE (matches cube2)
-anoise/rnoise1 from noisepar       -                             TODO
-plot power/cov/noise               (partial in statmom)          PARTIAL
-getweight5 -> weights              ### getweight5.pro            TODO (empty/"already in python")
-restore weightfile                 -                             TODO
-build z0 grid, interp weights      -                             TODO
-profrest5 -> prof,erms,wind        ### profrest5.pro             TODO (cell empty)
-see/fsee/see2/wind prints          -                             TODO
+Last updated: 2026-09-04
 
-BOTTOM LINE: The SIMULATION + CUBE-REDUCTION half (through statmom, ~line 37 of
-testsimul.pro) is essentially complete. The PROFILE-RESTORATION half (getweight5
-+ profrest5, lines 55-105) is NOT started. That second half is the scientific
-payoff (seeing, free-atmosphere seeing, wind, tau0, isoplanatic angle).
+1. What has been done
 
-We do NOT need to re-implement getweight5/profrest5 — the working modules exist
-in Python.
+We've been translating the first part of testsimul.pro (Andrei's IDL) into Python inside testsimul.ipynb. That first part is the piece that generates the simulated ring-image data cubes; the later reduction steps (statmom.pro, getweight5.pro, profrest5.pro) are the standard processing tools also used in normal operations, so we don't need to re-do those fully, Andrei and/or Adam already have them in
+Python.
 
---------------------------------------------------------------------------------
-2. UNITS ISSUE (pixel scale)
---------------------------------------------------------------------------------
-One variable name `pixel` is overloaded for two different physical quantities:
+Concretely, the following IDL stages are now translated and running end-to-end in testsimul.ipynb:
 
-  (a) SCREEN / GRID sampling  -> METERS  (spacing of the atmospheric screen;
-      sets size = 2*ngrid*pixel and Fresnel propagation). Value: 0.017664 m.
-      This usage is CORRECT in simatm and in most of ringsim
-      (size, nblur, jstep, radpix = d*0.5/pixel*ksamp). LEAVE IN METERS.
+  - readpar('sim1.par'): instrument/site parameters (d, effl, eps, pixel, wavelen,
+    pdist, ringradpix, mmax, nsect, ron, weightfile, etc.) plus the observing
+    parameters (seeing, zlow, zhigh, highfrac, starmag, gain) are defined directly
+    in notebook cells. r0 and the turbulence integral J (tint) are computed from
+    seeing exactly as in the .pro. A proper file-based reader for sim1.par is still
+    a stub (cell "#par = with open data sim1.par ...").
 
-  (b) DETECTOR PLATE SCALE -> ARCSEC / CCD PIXEL. This is what the ring geometry
-      and ALL of getweight5 / aweight / profrest5 mean by "pixel".
-      In aweight.py: ringrad = ringradpix2 * asperpix / pixel  =>  pixel = arcsec/px.
-      La Serena par confirms: "pixel":1.58  (1.58"/px).
+  - simatm (simatm.py): DONE. Simulates the complex-amplitude screen for a two-layer
+    atmosphere (low + high), builds Fresnel filters, generates Kolmogorov phase
+    screens via FFT, propagates high layer -> low layer -> ground with the angular
+    spectrum method, and saves everything to atm.npz (u1, ngrid, pixel, wavelen,
+    see, r0, highfrac, zhigh, zlow). Also computes the Rytov/scintillation
+    diagnostic and writes atmsim.jpg. Exists both as a standalone script (simatm.py)
+    and as a notebook cell. Supports an optional fixed RNG seed (seed0) for
+    reproducibility.
 
-The notebook ALREADY holds the correct arcsec scale in `pixscale`:
-      pixscale = pixsize/effl*206265 = 6.9e-6/1.20845*206265 ≈ 1.178 "/px
-and already uses it correctly for oversampling (d1 = wavelen/pixscale*206265).
+  - ringsim (ringsim.pro): DONE as a notebook cell. Loads atm.npz, applies wind
+    blur (screen averaging over nblur sub-steps), builds the aperture mask with
+    central obstruction, adds defocus (a4) and matching spherical (a11) Zernike
+    terms, forms the Fresnel/pupil -> focal-plane ring image, oversamples/rebins to
+    CCD pixels, slides the aperture across the screen frame-by-frame (with x/y
+    slide and roll-over), and adds photon (Poisson) + readout noise per frame. It
+    builds the 3D cube and also writes a live-preview ringsim.gif and the average
+    image imav. NOTE: the standalone ringsim.py is currently only an argparse
+    skeleton (arg parsing copied from simatm.py) — the actual simulation body has
+    NOT yet been moved out of the notebook into that script.
 
-THE BUG: in the ringsim cell, `asperpix` is wrongly set to the meters value
-(asperpix = pixel) instead of the grid-derived arcsec value. Everything that
-depends on asperpix (ring radius in CCD pixels, the discrepancy check) is
-therefore wrong/meaningless.
+  - writefits (writefits.pro): DONE as a notebook cell. Writes the cube to a FITS
+    file with a header carrying the keys cube2.py expects (DATE-OBS, TELESCOP,
+    WAVELEN, PIXSCALE, EXPOSURE [microseconds], MAG, SEEING, CONJ_H, INST, GAIN,
+    STAR). Filename is prompted interactively. Output files present in the folder
+    include test.fits, sim_ring_cube.fits, and 1000exps.fits.
 
-REQUIRED EDITS (small, self-contained; DO NOT globally rename `pixel`):
+  - cubecoef (cubecoef.pro): DONE as a notebook cell, and also runnable via Adam's
+    adam/cube2.py (invoked with %run ./adam/cube2.py test.fits ./ ./). The notebook
+    version reads the cube, builds the per-sector radial/flux masks and the
+    piston-subtracted cos/sin angular masks (up to mmax), centers each frame with a
+    Fourier phase-shift, projects every frame onto the mask matrix to produce the
+    coefficient array coef, and assembles the impar dict (backgr, flux, fluxvar,
+    rad, rwidth, xc, yc, xcvar, ycvar, coma, angle, contrast, noisepar). It also
+    writes a centroid-tracking preview cube_centroid.gif.
 
-  [sim1.par cell] Fix comment only:
-      pixel = 0.017664   # atmospheric screen sampling, METERS (not arcsec)
+  - statmom (statmom.pro): DONE as a notebook cell (the cell was fixed in commit
+    b353543). Computes DIMM-like differential-radius variance and its noise, the
+    angular power spectrum (power) and 1-lag covariance (cov), and the mean
+    aberration coefficients (mcoef). Packs results into the moments dict and a
+    combined data dict {image:{impar, noisepar}, moments}.
 
-  [ringsim cell] Replace the wrong asperpix with the grid-derived scale
-  (this is the line currently commented out):
-      asperpix = 206265 * wavelen / (nap * pixel / ksamp) * npixperpix  # arcsec/CCD px
+  - getweight5 / profrest5: already available in Python in adam/ and andrei/
+    (getweight5.py, profrest5.py). Not re-translated. In the notebook these
+    sections are placeholders marked "already in python".
 
-  [ringsim cell] Fix the discrepancy check (currently compares arcsec vs meters,
-  so it can never fire). Compare grid scale to the nominal detector scale:
-      if abs(asperpix / pixscale - 1.0) > 0.05:
-          print(f'Discrepant pixel scale! grid={asperpix:.4f}" vs detector={pixscale:.4f}"')
-          print(f'Re-run SIMATM with screen pixel = {pixel * asperpix / pixscale:.6e} m')
-          raise ValueError('Pixel scale discrepancy exceeds 5%. Aborting.')
+New helper utility written alongside the translation:
 
-  [writefits cell] PIXSCALE is written as meters but labeled arcsec. Use:
-      header['PIXSCALE'] = (float(asperpix), 'Arcseconds per CCD pixel')
+  - zernikeplots.py: DONE. Standalone CLI that reads plain-text Zernike-coefficient
+    files from a folder ("<index> <value>" per line), aggregates a chosen set of
+    Zernikes across all files, and saves one histogram JPG per Zernike with mean,
+    median and sigma annotated. Useful for inspecting the distribution of simulated
+    aberrations. Invoke with --folder (required), plus optional --zernikes,
+    --pattern, --bins, --prefix.
 
-  [future par dict for getweight5/profrest5]:
-      par["telescope"]["pixel"]      = float(pixscale)     # arcsec/px (~asperpix after fix)
-      par["telescope"]["ringradpix"] = float(rradiuspix)   # ring radius in CCD pixels
+2. Ongoing work
 
---------------------------------------------------------------------------------
-3. KNOWN BUGS / CODE-QUALITY ITEMS STILL OPEN
---------------------------------------------------------------------------------
-Confirmed functional bugs (verify current state; some may already be fixed):
-  - `if display:` is ALWAYS True. `display` is the imported IPython function
-    (from IPython.display import display) and is truthy, so the intended
-    on/off plotting flag never turns off. Rename the flag (e.g. show_plots).
-    Present in cubecoef and statmom cells.
-  - `backgr` NameError in cubecoef's empty-cube guard:
-        impar = {'backgr': backgr, ...}   # variable is `background`, not `backgr`
-    Only triggers on the `radpix > nx/4` path, but it's a latent crash.
-  - `asperpix` units bug — see section 2 (the important one).
+We are adapting the working notebook code into standalone, reusable .py scripts so the simulation can run outside Jupyter and slot in next to Adam's/Andrei's Python tools. The immediate task is finishing ringsim.py: right now it only has the argparse skeleton, so the simulation body (currently living in the ringsim notebook cell) needs to be moved into it and wired to read atm.npz and the sim1.par parameters, mirroring how simatm.py is structured. Related loose ends being cleaned up: a real sim1.par file reader (replacing the inline parameter cells and the readpar stub), removing the interactive input() prompt in the writefits step for scripted runs, and reconciling the asperpix/pixel scale check in ringsim (flagged with a "this doesn't make sense" note in the cell).
 
-Already fixed in recent edits (confirm before relying):
-  - cubecoef: `xy`->`yc` centroid typo; roll axes swapped -> now
-        np.roll(tmp, (-round(yc), -round(xc)), axis=(0,1))   (matches cube2)
-  - cubecoef: inring cos/sin masks -> now full-frame projection matrix
-        maskmat (ncoef, nx*ny), c = maskmat @ tmp_shifted.ravel()
-    so the piston-subtracted DC cancellation matches cube2.
-  - statmom: rewritten to match cube2.py Moments() tail — dropped the spurious
-    0.5 noise factor and ddof=1, added mcoef, removed the broken ringweight
-    seeing block, and now emits cube2's moments/data dict structure.
-  - plt.clf -> plt.clf() (was a no-op without parens).
-  - jitter is now numeric (0), not a bool used as amplitude.
-  - writefits header aligned to cube2.py keys (GAIN, DATE-OBS, STAR; EXPOSURE
-    written in microseconds since cube2 multiplies by 1e-6).
+3. Future tasks
 
-Style / PEP 8 / PEP 257 (lower priority, do during the .py split):
-  - Imports not grouped (stdlib/third-party/local) and several unused
-    (os, pandas, scipy as sci, detrend, find_peaks, map_coordinates, factorial,
-    tqdm). Prune them.
-  - No docstrings anywhere; add module + function docstrings when splitting to .py.
-  - Many f-strings with no placeholders; missing spaces after commas; lines >79.
-  - Pointless self-assignments (wavelen=wavelen, d=d, nsect=nsect, ...) — leftover
-    placeholders for future argparse.
-  - Heavy reliance on notebook global state (`'x' in locals()/globals()`).
-
---------------------------------------------------------------------------------
-4. NEXT STEPS  (ordered)
---------------------------------------------------------------------------------
-STEP 1 — Fix the pixel-scale units (Section 2). Do this first; profile
-         restoration will produce wrong seeing scale otherwise.
-         Verify: after the fix, asperpix ≈ pixscale (within 5%) and the
-         discrepancy check passes.
-
-STEP 2 — Fix remaining latent bugs (Section 3): rename the `display` flag to a
-         real boolean, fix `backgr` -> `background` in the empty-cube guard.
-
-STEP 3 — Build a `par` nested dict (or JSON) matching the schema in
-         andrei/par-laserena.json, but with the SIMULATED instrument values:
-           telescope: D=0.304, eps=0.7, pixel=pixscale (arcsec), pdist=1200,
-                      ringradpix=rradiuspix, ron
-           profrest:  mmax=20, zgrid=[0,250,500,1000,2000,4000,8000,16000],
-                      wav=[600], sp=[1.0]  (single element => monochromatic, to
-                      match the 0.6um sim; aweight sets wavstep=0 and blackbody=1),
-                      weightfile='weights.json', zmat='zmat.json', starcat=...
-         Use the SAME par to drive both simulation geometry and getweight5 so the
-         ring radius / pixel scale are self-consistent (as testsimul.pro does).
-
-STEP 4 — Wire in getweight5 (fill the "### getweight5.pro" cell):
-           import sys; sys.path.insert(0, 'adam')
-           from getweight5 import computeweight
-           computeweight(par)          # writes weights.json; needs NO cube
-         Dependencies: adam/aweight.py -> adam/zernike.py (must be importable).
-
-STEP 5 — Extend the notebook `data` dict for profrest5.Restore(par,data,weight,zmat).
-         Currently data has image.impar, image.noisepar, moments.{var,cov,rvar}.
-         STILL MISSING:
-           data["starpar"] = {"zen": 0.0, "BV": 0.0}   # zenith, B-V=0 sim star
-                                                        # (normally set by getzen.py)
-           data["cubepar"] = {"gain": <gain>}          # read back from FITS header
-         (impar["flux"] already present; profrest converts ADU->electrons via eladu.)
-
-STEP 6 — Fill the "### profrest5.pro" cell (currently EMPTY):
-           import json, codecs
-           from profrest5 import Restore
-           weight = json.load(open('weights.json'))
-           zmat   = json.load(open('adam/zmat.json'))
-           profile = Restore(par, data, weight, zmat)
-           # profile -> see, fsee, see2, wind, tau0, theta0, prof, erms, totvar
-         Then add the print block mirroring testsimul.pro lines 78-102
-         (see/fsee, sector seeing see2, Z[km]/J profile, wind, input-vs-recovered).
-
-STEP 7 — Add the anoise/rnoise1 computation and overplot the noise floor on the
-         power spectrum (testsimul.pro lines 39-50) for a proper diagnostic plot.
-
-STEP 8 — VALIDATION: run end-to-end and check the recovered seeing/profile
-         against the INPUT (seeing=1", zlow/zhigh, highfrac=0.1). This is the
-         real test of correctness. Compare notebook outputs to running the adam/
-         reference chain (cube2.py -> getweight5.py -> profrest5.py) on the same
-         test.fits.
-
-STEP 9 — REFACTOR to .py: once validated, split cells into modules with
-         docstrings and explicit args/returns (kill the global-state coupling),
-         following the adam/ layout. Address the PEP 8/257 items in Section 3.
-================================================================================
+Alongside the IDL runs, build a way to compare and contrast the simulation results of both pipelines (Python vs IDL) — e.g. export the key outputs (coef / impar / moments: power spectrum, covariance, radii, flux, seeing, restored profile) to a .txt file or tables and diff them. This will let us validate a near 1:1, faithful reconstruction of Andrei's IDL simulation in Python. Maybe running the same fixed RNG seed where possible will make the comparison tighter.
