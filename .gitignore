@@ -127,3 +127,20 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Personal ignores
+*.gif
+*.jpg
+*.jpeg
+*.npz
+*.pdf
+*.tiff
+*.tif
+*.fit
+*.fits
+notebooks/summit/rso-163/characterize/
+notebooks/summit/rso-163/ringsim/aberrtest/
+notebooks/summit/rso-163/ringsim/adam/
+notebooks/summit/rso-163/ringsim/andrei/
+notebooks/summit/rso-163/ringsim/testsimul.pro
+notebooks/summit/rso-163/ringsim/sim_ring_cube.fits
