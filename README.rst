@@ -37,5 +37,9 @@ Workspace Overview
 ==================
 
 1. Weekly branches names reference the week number by ISO 8601 (YYYY-MM-DD hh:mm:ss.ms), as well as all other dates within scripts unless stated otherwise.
+
 2. For code standards, we should follow PEP-8 as reference.
+
+4. In the current working directory (ringsim) exists a handoff file, as first step to documentation and heredability.
+
 3. Anyother necesary disclaimer will be added later.

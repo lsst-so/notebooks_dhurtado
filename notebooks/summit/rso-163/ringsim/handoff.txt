@@ -59,8 +59,35 @@ Concretely, the following IDL stages are now translated and running end-to-end i
     combined data dict {image:{impar, noisepar}, moments}.
 
   - getweight5 / profrest5: already available in Python in adam/ and andrei/
-    (getweight5.py, profrest5.py). Not re-translated. In the notebook these
-    sections are placeholders marked "already in python".
+    (getweight5.py, profrest5.py). Inputted into the notebook. These are the heavy-workers
+    of the simulation, as they recreate what the program will be doing at night.
+
+    getweight5 (computeweight -> aweight): builds the FORWARD model that links
+    turbulence to the observables. On a log-spaced altitude grid (z, ~0.25-32 km)
+    and for every angular frequency m (0..mmax), aweight propagates the ring-image
+    response through Fresnel diffraction to produce the weighting matrix wt0 (how
+    much a unit turbulence integral J at each layer contributes to the variance of
+    each angular coefficient) and the U-functions ufunc (used for the wind
+    response). It first back-solves the conjugation distance pdist from the ring
+    radius, then computes weights for two star colors (B-V=0 and B-V=1) to capture
+    the chromatic slope, derives the wind coefficients ucoef for a selected set of
+    frequencies, and serializes everything (z, wt0, wtslope, ucoef0, ucoefslope,
+    umm, lameff, ringrad, pdist) to weights.json. It is run once per instrument
+    configuration, not per cube.
+
+    profrest5 (restore): the INVERSE step, run on every cube at night. It takes the
+    measured moments (angular power var, 1-lag covariance cov, radius variance
+    rvar), the ring parameters (impar), the noise parameters, and the star geometry
+    (zenith distance, B-V color), interpolates the weights onto the profile height
+    grid z0 and stretches them by 1/cos(zen). After subtracting photon/readout
+    noise and applying finite-exposure and saturation (Z-matrix) corrections, it
+    solves a weighted non-negative least-squares (NNLS) system to recover the
+    turbulence profile (the Cn^2 integrals per layer). From that profile it derives
+    total and free-atmosphere seeing, an independent sector/radius-variance seeing,
+    the wind speed (via the U-functions), the coherence time tau_0, and the
+    isoplanatic angle theta_0. Together the two stages close the loop: getweight5
+    maps turbulence -> observables, profrest5 maps observables -> turbulence profile
+    plus integrated parameters.
 
 New helper utility written alongside the translation:
 
@@ -73,8 +100,17 @@ New helper utility written alongside the translation:
 
 2. Ongoing work
 
-We are adapting the working notebook code into standalone, reusable .py scripts so the simulation can run outside Jupyter and slot in next to Adam's/Andrei's Python tools. The immediate task is finishing ringsim.py: right now it only has the argparse skeleton, so the simulation body (currently living in the ringsim notebook cell) needs to be moved into it and wired to read atm.npz and the sim1.par parameters, mirroring how simatm.py is structured. Related loose ends being cleaned up: a real sim1.par file reader (replacing the inline parameter cells and the readpar stub), removing the interactive input() prompt in the writefits step for scripted runs, and reconciling the asperpix/pixel scale check in ringsim (flagged with a "this doesn't make sense" note in the cell).
+We've been working on finishing the translation into a Jupyter notebook, which is done,
+but it still needs troubleshooting and bug fixing, besides the adaptation to stand alone
+scripts. This process, also considers the stylization of the code, as to follow Rubin's
+and PEP 8 standards of legibility and hand-overs. 
 
 3. Future tasks
 
-Alongside the IDL runs, build a way to compare and contrast the simulation results of both pipelines (Python vs IDL) — e.g. export the key outputs (coef / impar / moments: power spectrum, covariance, radii, flux, seeing, restored profile) to a .txt file or tables and diff them. This will let us validate a near 1:1, faithful reconstruction of Andrei's IDL simulation in Python. Maybe running the same fixed RNG seed where possible will make the comparison tighter.
+Besides finishing the troubleshooting, we need to create (or add) an output method
+to capture and store the parameters and values calculated by the simulation.
+These should be stored in a plain text file for simplicity and straight-forward
+to compare to the same output in IDL. Also, we have to implement pytests and argparse.
+
+On the hardware, we have to assemble the optical path, test the mount and characterize
+the camera, all which should be documented both in Jira (ADD LINK) and in this repo.
