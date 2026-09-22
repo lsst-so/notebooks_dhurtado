@@ -8,15 +8,27 @@ Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
+import codecs
+import json
 import logging
+import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.animation as animation
 import numpy as np
 import os
-import pandas as pd
-import scipy as sci
+from scipy import optimize
+import sys
 from tqdm.notebook import tqdm
-import argparse
+
+from astropy.io import fits
+import datetime
+from IPython.display import display, clear_output
+from scipy.signal import detrend, find_peaks
+from scipy.ndimage import zoom, map_coordinates, shift as ndshift
+
+import zernike
 
 
 
@@ -43,7 +55,6 @@ def main():
     
     args = p.parse_args()
     
-    #Is there a way to make this easier?
     pixel = args.pixel
     r0 = args.r0
     wavelen = args.wavelen

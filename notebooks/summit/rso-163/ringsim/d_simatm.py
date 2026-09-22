@@ -8,15 +8,28 @@ Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
+import argparse
+import codecs
+import json
 import logging
+import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import matplotlib.animation as animation
 import numpy as np
 import os
-import pandas as pd
-import scipy as sci
+from scipy import optimize
+import sys
 from tqdm.notebook import tqdm
-import argparse
+
+from astropy.io import fits
+import datetime
+from IPython.display import display, clear_output
+from scipy.signal import detrend, find_peaks
+from scipy.ndimage import zoom, map_coordinates, shift as ndshift
+
+import zernike
 
 
 
@@ -43,7 +56,6 @@ def main():
     
     args = p.parse_args()
     
-    #Is there a way to make this easier?
     pixel = args.pixel
     r0 = args.r0
     wavelen = args.wavelen
@@ -56,7 +68,9 @@ def main():
     
     print('Simulating atmosphere')
     
-    tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen/np.pi) ** 2) # Turbulence integral in meters^1/3
+    logger.debug(f'size: {size} \n ngrid: {ngrid}')
+    
+    tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2) # Turbulence integral in meters^1/3
     see = (tint0 / 6.83e-13) ** (0.6)
     tinthigh = tint0 * highfrac            # High layer integral
     tintlow = tint0 * (1 - highfrac)       # Low layer integral
@@ -157,10 +171,10 @@ def main():
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
     intensity = np.abs(u1) ** 2
     
-    print(f"Rytov variance, simulated: {rytov}, {scint}")
+    print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
     plt.figure(figsize=(7, 7))
-    plt.imshow(intensity, cmap='GnBu', origin='lower')
+    plt.imshow(intensity, cmap='GnBu', origin='lower', norm=colors.LogNorm())
     plt.title('Simulated atmosphere')
     plt.tight_layout()
     plt.savefig('atmsim.jpg', dpi=300, format='jpg')
@@ -168,3 +182,44 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# ============================================================================
+# TODO / review notes (from ruff + comparison with the testsimul notebook)
+# 'import argparse' has been added above. The rest below still needs fixing:
+#
+# --- BLOCKERS (script NameErrors without these) ---
+# * `highfrac` is undefined (used at lines ~74,75,87,110,163). The argparse
+#   defines `--fhigh` -> dest='fhigh' and unpacks `fhigh = args.fhigh`, but the
+#   body uses `highfrac`. Fix: rename dest to 'highfrac' (--highfrac) and
+#   `highfrac = args.highfrac`, OR rename every body use to `fhigh`. The
+#   notebook uses `highfrac`, so that name is preferred.
+# * `logger` is undefined (lines ~70,104,107). The notebook defines
+#   `logger = logging.getLogger('testsimul')` in a separate cell; this
+#   standalone script never creates it. Fix: add
+#   `logger = logging.getLogger('simatm'); logger.setLevel(debug_str)`
+#   after unpacking args (this also uses debug_str, see below).
+# * `seed0` is undefined (lines ~102,103,104). The `if 'seed0' in globals()`
+#   guard was written for the notebook's global namespace; inside main() it is
+#   a local that does not exist. Fix: add
+#   `p.add_argument('--seed0', dest='seed0', type=int, default=None, ...)`
+#   then simplify the guard to `if seed0 is not None:`.
+#
+# --- UNUSED ASSIGNMENTS (dead inputs) ---
+# * `fhigh` assigned but never used (line ~64) -- same as the highfrac issue.
+# * `debug_str` assigned but never used (line ~65) -- meant to set the logger
+#   level: `logger.setLevel(debug_str)` (ties into the logger fix above).
+#
+# --- UNUSED IMPORTS (ruff F401, 20 total, auto-fixable) ---
+#   Only numpy, matplotlib.pyplot, matplotlib.colors, and argparse are used.
+#   Unused: codecs, json, math, sys, matplotlib(as mpl), matplotlib.animation,
+#   os, scipy.optimize, tqdm, datetime, IPython.display (display, clear_output),
+#   scipy.signal (detrend, find_peaks), scipy.ndimage (zoom, map_coordinates,
+#   shift), zernike. Run `ruff check d_simatm.py --fix` to strip them (do this
+#   AFTER confirming argparse is actually used, so it is not removed too).
+#
+# --- NOTEBOOK DISCREPANCY ---
+# * `--ngrid` default is 1024 here vs 512 in the notebook, and type=float.
+#   ngrid is used as an array index (r[ngrid, ngrid], slice bounds), so a float
+#   raises IndexError at line ~96. Fix: change `--ngrid` to type=int.
+# ============================================================================
