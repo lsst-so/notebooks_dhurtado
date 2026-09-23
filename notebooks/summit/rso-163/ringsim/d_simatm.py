@@ -161,6 +161,7 @@ def main():
         fhigh=fhigh,
         zhigh=zhigh,
         zlow=zlow
+        rng=rng
         )
     
     # Diagnostics
