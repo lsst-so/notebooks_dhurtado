@@ -2,7 +2,20 @@
 '''
 Create the atmosphere for simulation.
 Based on input parameters (or left at default),
-constructs an atmosphere screen w
+constructs an atmosphere screen.
+Currently does not support debugging
+
+Necessary parameters:
+pixel
+r0
+
+Parameters with defaults:
+wavelen
+ngrid
+zlow
+zhigh
+fhigh
+seed0
 
 
 Auth: A. Tokovinin
@@ -153,7 +166,7 @@ def main():
     # Diagnostics
     scint = np.sum((np.abs(u1)**2 - 1)**2) / (2 * ngrid) ** 2
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
-    intensity = np.abs(u1) ** 2
+    #intensity = np.abs(u1) ** 2
     
     print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
