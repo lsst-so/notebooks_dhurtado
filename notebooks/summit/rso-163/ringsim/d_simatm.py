@@ -96,13 +96,12 @@ def main():
     # Create Fresnel filters
     farg = np.pi * wavelen / (size ** 2) * r ** 2
     
-    # Set seed for rng, if seed0 is provided, use it. Otherwise, let the OS provide a random one
-    if 'seed0' in locals() and seed0 is not None:
-        rng = np.random.default_rng(seed0)
-        print(f'Simulation on fixed seed: {seed0}.')
+    if seed0 is None:
+        seed0 = np.random.SeedSequence().entropy  # random integer seed
+        print(f'Simulation on random seed: {seed0}.')
     else:
-        rng = np.random.default_rng()
-        print(f'Simulation on random seed: {rng}.')
+        print(f'Simulation on fixed seed: {seed0}.')
+    rng = np.random.default_rng(seed0)
     
     # Simulate turbulence in high layer
     if fhigh > 0:
@@ -160,8 +159,8 @@ def main():
         r0=r0,
         fhigh=fhigh,
         zhigh=zhigh,
-        zlow=zlow
-        rng=rng
+        zlow=zlow,
+        seed0=seed0
         )
     
     # Diagnostics
