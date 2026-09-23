@@ -3,33 +3,24 @@
 Simulates ring images and creates fits file
 Includes ringsim.pro and writefits.pro
 Currently does not support debugging
+Images should be saved and/or displayed
 
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
-import codecs
-import json
-import logging
+import argparse
 import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import matplotlib.animation as animation
+import matplotlib.animation as animation  # noqa: F401  (needed so mpl.animation.PillowWriter resolves)
 import numpy as np
-import os
-from scipy import optimize
-import sys
-from tqdm.notebook import tqdm
 
 from astropy.io import fits
 import datetime
-from IPython.display import display, clear_output
-from scipy.signal import detrend, find_peaks
-from scipy.ndimage import zoom, map_coordinates, shift as ndshift
-
-import zernike
+from scipy.ndimage import zoom, shift as ndshift
 
 
 
@@ -37,18 +28,24 @@ def main():
     
     p = argparse.ArgumentParser()
     
-    p.add_argument('d', type=float, default=0.304, 
-                   help='Diameter of telescope M1 in meters, default=0.304')
-    p.add_argument('eps', type=float, default=0.7, 
-                   help='Fraction of central obscuration, default=0.7')
-    p.add_argument('pdist', type=float, default=1050.0, 
-                   help='Conjugation distance in meters, default=1050')
+    p.add_argument('d', type=float,
+                   help='Diameter of telescope M1 in meters')
+    p.add_argument('effl', type=float,
+                   help='Effective focal length')
+    p.add_argument('eps', type=float,
+                   help='Fraction of central obscuration')
+    p.add_argument('pdist', type=float,
+                   help='Conjugation distance in meters')
+    p.add_argument('pixsize', type=float,
+                   help='Camera pixel size in meters')
     p.add_argument('--texp', dest='texp', type=float, default=1e-3, 
                    help='Seconds of exposure time, default=1e-3')
     p.add_argument('--tacc', dest='tacc', type=float, default=1, 
                    help='Seconds of acquisition, default=1')
     p.add_argument('--ron', dest='ron', type=float, default=0, 
                    help='Read out noise in electrons, default=0')
+    p.add_argument('--gain', dest='gain', type=float, default=0, 
+                   help='Camera decibels(?) gain setting, default=0')
     p.add_argument('--starmag', dest='starmag', type=float, default=1, 
                    help='Magnitude of the star, default=2')
     p.add_argument('--wind', dest='wind', type=float, default=10, 
@@ -59,39 +56,50 @@ def main():
                    help="Decides if there's oversampling, boolean, default=True")
     p.add_argument('--blur', dest='blur', type=bool, default=True, 
                    help="Decides if there's blurring, boolean, default=True")
+    p.add_argument('--display', dest='display', type=bool, default=True,
+                   help='Decides if images are displayed, boolean default=True')
     
     args = p.parse_args()
     
     with np.load('atm.npz') as data:
-    u1        = data['u1']
-    ngrid     = data['ngrid']
-    pixel     = data['pixel']
-    wavelen   = data['wavelen']
-    see       = data['see']
-    r0        = data['r0']
-    highfrac  = data['highfrac']
-    zlow      = data['zlow']
-    zhigh     = data['zhigh']
-
+        u1        = data['u1']
+        ngrid     = data['ngrid']
+        pixel     = data['pixel']
+        wavelen   = data['wavelen']
+        see       = data['see']
+        r0        = data['r0']
+        fhigh     = data['fhigh']
+        zlow      = data['zlow']
+        zhigh     = data['zhigh']
+        seed0     = int(data['seed0'])
+    
     # Hard-coded Parameters, these change with args.parse
     d = args.d                   # meters, mirror diameter
-    eps = args.eps               # central obscuration 
+    effl = args.effl             # meters, effective focal length
+    eps = args.eps               # fraction, central obscuration 
     pdist = args.pdist           # meters, H (Conjugation distance)
+    pixsize = args.pixsize       # meters, CCD pixel size
     texp = args.texp             # seconds, exposure time
     starmag = args.starmag       # star magnitude
     ron = args.ron               # electrons, read out noise 
+    gain = args.gain             # db, camera gain
     tacc = args.tacc             # seconds, accumulation time
     texp = args.texp             # seconds, exposition time
     wind = args.wind             # m/s, wind speed
     jitter = args.jitter
     oversamp = args.oversamp     # check to oversample
     blur = args.blur             # check for blurring
+    display = args.display       # check for image display
+    rng = np.random.default_rng(seed0)
     
     # Apertures move over the screen mostly in x-direction, but slide
     # in y-direction by SLIDE meters par grid length
     size = 2 * ngrid * pixel                          # grid size in arcseconds?
     slide = 0.205
     alpha = slide / size                              # tangent of slide angle
+    
+    pixscale =  (pixsize) / effl * 206265
+    print(f'Calculated pixel scale', pixscale)
     
     print(f'Loaded {data}')
     print('starmag, ron, d, eps, pdist, wind, size, ngrid')
@@ -113,7 +121,7 @@ def main():
     
     # Calculate seeing in arcseconds (206265 converts radians to arcseconds)
     seeing = 0.98 * wavelen / r0 * 206265
-    print(f'Seeing (arcsec): {round(seeing,5)} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {highfrac}')
+    print(f'Seeing (arcsec): {round(seeing,5)} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {fhigh}')
     print(f'Screen size (meters): {2 * ngrid * pixel} \n Pixel size (meters): {pixel}')
     
     # Total turbulence integral J (m^(1/3))
@@ -160,12 +168,11 @@ def main():
     # the pupil sampling is pixel/ksamp [m] over nap grid pixels, so the fine-image scale is
     # 206265*wavelen/(nap*pixel/ksamp) and the binned-CCD scale multiplies that by npixperpix.
     # Fine focal-plane pixel scale [arcsec], set purely by the pupil sampling.
+    
     finepix = 206265 * wavelen / (nap * pixel / ksamp)
-    # CHANGED: lock the detector plate scale to the inputted pixscale (=pixsize/effl),
-    # instead of the power-of-2 'npixperpix' scale (which could only be 0.219*{1,2,4,8..}).
     asperpix = pixscale                 # detector plate scale = user input [arcsec/pix]
-    ccdbin = asperpix / finepix         # fine pixels per CCD pixel (float; may be non-integer)
-    nccd = int(round(nap / ccdbin))     # detector size [CCD pixels]
+    ccdbin = asperpix / finepix         # fine pixels per CCD pixel
+    nccd = int(round(nap / ccdbin))     # pixels, detector size
     rradiuspix = 0.85 * d * (1 + eps) / (4 * pdist) * 206265 / asperpix
     HR = rradiuspix * pdist
     
@@ -174,7 +181,6 @@ def main():
     print(f'Nominal ring radius [pix, arcsec]: {rradiuspix:.3f}, {rradiuspix * asperpix:.3f}')
     print(f'HR [unit?]: {HR}')
     
-    # asperpix is now forced to equal pixscale, so there is no plate-scale mismatch.
     # Warn only if the fine grid is coarser than the detector (under-sampled sim).
     if ccdbin < 1.0:
         print(f'Warning: fine grid {finepix:.4f} arcsec/pix is coarser than the '
@@ -185,11 +191,10 @@ def main():
         x1d = np.arange(nccd, dtype=np.float64)
         omega = (3.3 / niter) * (2 * np.pi)  # angular frequency
     
-    # Star
-    if starmag != 0:
-        BW = 0.26                      # effective bandwidth
-        phot_con = 1e11                # constant representing photons/sec/m^2 for a Mag 0 star at the top of the atmosphere
-        starph = phot_con * texp * BW * 10**(-0.4 * starmag) * np.pi * (d/2)**2 * (1 - eps)**2 
+    # Star (If statement would've crashed the script if starmag=0)
+    BW = 0.26                      # effective bandwidth
+    phot_con = 1e11                # constant representing photons/sec/m^2 for a Mag 0 star at the top of the atmosphere
+    starph = phot_con * texp * BW * 10**(-0.4 * starmag) * np.pi * (d/2)**2 * (1 - eps)**2 
         
     print(f'Stellar photons per exposure and Star Magnitude: {round(starph,2),starmag}')
     print(f'Readout noise (e-): {ron}')
@@ -204,7 +209,7 @@ def main():
     apert[inside] = 1
     # apert[0 : nap // 2, nap // 2 - 10 : nap // 2 + 10] = 0 # Optional sector mask test
     
-    if logger.isEnabledFor(logging.DEBUG):
+    if display:
         print(f'radpix: ({d} * 0.5) / {pixel}) * {ksamp} = {radpix} \n n inside: {np.sum(apert)}')
         plt.figure(figsize=(6, 6))
         plt.imshow(apert, cmap='gray', origin='lower')
@@ -225,7 +230,7 @@ def main():
     
     print(f'Nominal a4, a11 [rad]: {a4:}, {a11}')
     
-    if logger.isEnabledFor(logging.DEBUG):
+    if display:
         plt.figure(figsize=(6, 6))
         plt.imshow(tmp, cmap='gray', origin='lower', norm=colors.LogNorm())
         plt.title(f'Debug Zernike applied (nap={nap}, radpix={round(radpix/ksamp, 2)})')
@@ -244,7 +249,7 @@ def main():
     focus_centered = np.fft.fftshift(imh0_complex)
     imh0 = np.abs(focus_centered) ** 2
     
-    if logger.isEnabledFor(logging.DEBUG):
+    if display:
         plt.figure(figsize=(6, 6))
         plt.imshow(np.abs(fresnel), cmap='gray', origin='lower')
         plt.title(f'Debug at fresnel')
@@ -410,7 +415,7 @@ def main():
     
     imav = np.mean(cube, axis=0)
     
-    if logger.isEnabledFor(logging.DEBUG):
+    if display:
         plt.figure(figsize=(6, 6))
         plt.imshow(imav, cmap='gray', origin='lower')
         plt.title(f'Debug image average')
