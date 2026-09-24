@@ -53,7 +53,14 @@ def main():
     leak     = args.leak
     flat     = args.flat
     display  = args.display
-    
+
+    return cubecoef(cubefile, mmax, nsect, drad, interpol,
+                    nstart, leak, flat, display)
+
+
+def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
+             interpol=1, nstart=50, leak=1, flat=True, display=True):
+
     with fits.open(cubefile) as hdul:
         cube = hdul[0].data
         hdr  = hdul[0].header
@@ -347,6 +354,7 @@ def main():
         plt.clf
     
     return impar
-    
-#if __name__ == '__main__':
-#main()
+
+
+if __name__ == '__main__':
+    main()

@@ -60,6 +60,13 @@ def main():
     zhigh   = args.zhigh
     fhigh   = args.fhigh
     seed0   = args.seed0
+
+    return simatm(pixel, r0, wavelen, ngrid, zlow, zhigh, fhigh, seed0)
+
+
+def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
+           fhigh=0.1, seed0=52403):
+
     size    = 2 * ngrid * pixel
     
     print('Simulating atmosphere')
@@ -175,6 +182,11 @@ def main():
     plt.tight_layout()
     plt.savefig('atmsim.jpg', dpi=300, format='jpg')
     #plt.show()
+
+    return {'u1': u1, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,
+            'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,
+            'zlow': zlow, 'seed0': seed0}
+
 
 if __name__ == '__main__':
     main()

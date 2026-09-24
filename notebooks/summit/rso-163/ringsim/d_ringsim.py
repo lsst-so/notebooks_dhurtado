@@ -77,9 +77,15 @@ def main():
     oversamp = args.oversamp     # check to oversample
     blur     = args.blur             # check for blurring
     display  = args.display       # check for image display
-    
-    rng = np.random.default_rng(seed0)
-        
+
+    return ringsim(d, effl, eps, pdist, pixsize, texp, tacc, ron, gain,
+                   starmag, wind, jitter, oversamp, blur, display)
+
+
+def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
+            starmag=1, wind=10, jitter=0, oversamp=True, blur=True,
+            display=True):
+
     with np.load('atm.npz') as data:
         u1        = data['u1']
         ngrid     = data['ngrid']
@@ -92,6 +98,7 @@ def main():
         zhigh     = data['zhigh']
         seed0     = int(data['seed0'])
     
+    rng = np.random.default_rng(seed0)
     # Apertures move over the screen mostly in x-direction, but slide
     # in y-direction by SLIDE meters par grid length
     size  = 2 * ngrid * pixel                          # grid size in arcseconds?
@@ -453,8 +460,11 @@ def main():
     
     filename = 'test.fits'
     hdu.writeto(filename, overwrite=True)
-    
+
     print(f'Successfully saved {niter} frames to {filename}')
+
+    return filename
+
 
 if __name__ == '__main__':
     main()
