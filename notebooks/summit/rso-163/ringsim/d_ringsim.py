@@ -188,7 +188,6 @@ def main():
     
     # Circular image shifts
     if jitter > 0:
-        x1d = np.arange(nccd, dtype=np.float64)
         omega = (3.3 / niter) * (2 * np.pi)  # angular frequency
     
     # Star (If statement would've crashed the script if starmag=0)
@@ -433,7 +432,7 @@ def main():
     header['DATE-OBS'] = (datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'), 'File creation date / Observation Date')
     header['DIAM'] = (float(d), 'Telescope Diameter in meters')
     header['EFFL'] = (float(effl), 'Telescope focal length in meters')
-    header['OBSC'] = (float(eps), 'Central obscuration')
+    header['OBSC'] = (float(eps), 'Central obscuration (eps)')
     header['CONJ_H'] = (float(pdist), 'Conjugation height in meters')
     header['WAVELEN'] = (float(wavelen), 'Wavelength in meters')
     header['EXPOSURE'] = (float(texp*1e6), 'Exposure time in seconds')
