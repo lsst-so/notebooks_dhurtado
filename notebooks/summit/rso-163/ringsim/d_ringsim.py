@@ -431,18 +431,26 @@ def main():
     
     header = hdu.header
     header['DATE-OBS'] = (datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S'), 'File creation date / Observation Date')
-    header['TELESCOP'] = (float(d), 'Telescope Diameter in meters')
+    header['DIAM'] = (float(d), 'Telescope Diameter in meters')
+    header['EFFL'] = (float(effl), 'Telescope focal length in meters')
+    header['OBSC'] = (float(eps), 'Central obscuration')
+    header['CONJ_H'] = (float(pdist), 'Conjugation height in meters')
     header['WAVELEN'] = (float(wavelen), 'Wavelength in meters')
-    header['PIXSCALE'] = (float(asperpix), 'Arcseconds per pixel')
     header['EXPOSURE'] = (float(texp*1e6), 'Exposure time in seconds')
     header['MAG'] = (float(starmag), 'Stellar magnitude')
     header['SEEING'] = (float(seeing), 'Input seeing in arcseconds')
-    header['CONJ_H'] = (float(pdist), 'Conjugation height in meters')
-    header['INST'] = (f'{nccd} Simulation', 'Camera dimensions')
+    header['CAM'] = (int(nccd), 'Camera dimensions')
+    header['PIXEL'] = (int(pixel), 'Input grid pixel screen size')
+    header['PIXSCALE'] = (float(asperpix), 'Arcseconds per pixel')
     # Keys expected by cube2.py
     # Note: cube2.py reads EXPOSURE as microseconds (multiplies by 1e-6)
     header['GAIN'] = (float(gain), 'Detector gain (cube2.py reads as float)')
     header['STAR'] = ('', 'Star name (optional in cube2.py)')
+    
+    # mmax = args.mmax
+    # nsect = args.nsect
+    # drad = args.drad
+    # interpol = args.interpol
     
     filename = 'test.fits'
     hdu.writeto(filename, overwrite=True)
