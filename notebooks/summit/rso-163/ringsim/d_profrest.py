@@ -9,6 +9,7 @@ Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
+import argparse
 import codecs
 import json
 import logging
@@ -66,7 +67,7 @@ def main():
                    help='Debug level, logger accepted values, def=INFO')
 
     args = p.parse_args()
-    
+
     datafile = args.datafile
     weightfile = args.weightfile
     zmatfile = args.zmatfile
@@ -80,6 +81,18 @@ def main():
     gain = args.gain
     texp = args.texp
     debug_str = args.debug_str
+
+    return profrest(datafile, weightfile, zmatfile, zgrid, d, pixel, ron,
+                    mmax, zen, bv, gain, texp, debug_str)
+
+
+def profrest(datafile, weightfile, zmatfile=os.path.join('andrei', 'zmat.json'),
+             zgrid=(0, 250, 500, 1000, 2000, 4000, 8000, 16000), d=0.304,
+             pixel=1.17773, ron=0, mmax=20, zen=0, bv=0, gain=0, texp=1e-3,
+             debug_str='DEBUG'):
+
+    pass  # TODO: profrest5.pro body -> build and return the profile dict
+
 
 if __name__ == '__main__':
     main()

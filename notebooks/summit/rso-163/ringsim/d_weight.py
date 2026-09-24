@@ -9,6 +9,7 @@ Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
+import argparse
 import codecs
 import json
 import logging
@@ -73,6 +74,20 @@ def main():
     drho = args.drho
     weightfile = args.weightfile
     debug_str = args.debug_str
+
+    return weight(ringradpix, d, eps, pdist, pixscale, mmax, wav, sp,
+                  drho, weightfile, debug_str)
+
+
+def weight(ringradpix, d=0.304, eps=0.7, pdist=1050, pixscale=1.17773,
+           mmax=20, wav=(600,), sp=(1.0,), drho=1.5,
+           weightfile='weights.json', debug_str='DEBUG'):
+
+    wav = np.array(wav)
+    sp = np.array(sp)
+
+    pass  # TODO: aweight.pro / getweight5.pro body -> build and return weight dict
+
 
 if __name__ == '__main__':
     main()
