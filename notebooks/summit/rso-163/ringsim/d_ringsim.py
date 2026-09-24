@@ -59,8 +59,27 @@ def main():
     p.add_argument('--display', dest='display', type=bool, default=True,
                    help='Decides if images are displayed, boolean default=True')
     
-    args = p.parse_args()
+    # Hard-coded Parameters, these change with args.parse
+    args     = p.parse_args()
+    d        = args.d                   # meters, mirror diameter
+    effl     = args.effl             # meters, effective focal length
+    eps      = args.eps               # fraction, central obscuration 
+    pdist    = args.pdist           # meters, H (Conjugation distance)
+    pixsize  = args.pixsize       # meters, CCD pixel size
+    texp     = args.texp             # seconds, exposure time
+    starmag  = args.starmag       # star magnitude
+    ron      = args.ron               # electrons, read out noise 
+    gain     = args.gain             # db, camera gain
+    tacc     = args.tacc             # seconds, accumulation time
+    texp     = args.texp             # seconds, exposition time
+    wind     = args.wind             # m/s, wind speed
+    jitter   = args.jitter
+    oversamp = args.oversamp     # check to oversample
+    blur     = args.blur             # check for blurring
+    display  = args.display       # check for image display
     
+    rng = np.random.default_rng(seed0)
+        
     with np.load('atm.npz') as data:
         u1        = data['u1']
         ngrid     = data['ngrid']
@@ -73,28 +92,9 @@ def main():
         zhigh     = data['zhigh']
         seed0     = int(data['seed0'])
     
-    # Hard-coded Parameters, these change with args.parse
-    d = args.d                   # meters, mirror diameter
-    effl = args.effl             # meters, effective focal length
-    eps = args.eps               # fraction, central obscuration 
-    pdist = args.pdist           # meters, H (Conjugation distance)
-    pixsize = args.pixsize       # meters, CCD pixel size
-    texp = args.texp             # seconds, exposure time
-    starmag = args.starmag       # star magnitude
-    ron = args.ron               # electrons, read out noise 
-    gain = args.gain             # db, camera gain
-    tacc = args.tacc             # seconds, accumulation time
-    texp = args.texp             # seconds, exposition time
-    wind = args.wind             # m/s, wind speed
-    jitter = args.jitter
-    oversamp = args.oversamp     # check to oversample
-    blur = args.blur             # check for blurring
-    display = args.display       # check for image display
-    rng = np.random.default_rng(seed0)
-    
     # Apertures move over the screen mostly in x-direction, but slide
     # in y-direction by SLIDE meters par grid length
-    size = 2 * ngrid * pixel                          # grid size in arcseconds?
+    size  = 2 * ngrid * pixel                          # grid size in arcseconds?
     slide = 0.205
     alpha = slide / size                              # tangent of slide angle
     
@@ -440,7 +440,7 @@ def main():
     header['MAG'] = (float(starmag), 'Stellar magnitude')
     header['SEEING'] = (float(seeing), 'Input seeing in arcseconds')
     header['CAM'] = (int(nccd), 'Camera dimensions')
-    header['PIXEL'] = (int(pixel), 'Input grid pixel screen size')
+    header['PIXGRID'] = (int(pixel), 'Input grid pixel screen size')
     header['PIXSCALE'] = (float(asperpix), 'Arcseconds per pixel')
     # Keys expected by cube2.py
     # Note: cube2.py reads EXPOSURE as microseconds (multiplies by 1e-6)

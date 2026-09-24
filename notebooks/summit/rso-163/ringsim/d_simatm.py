@@ -51,17 +51,16 @@ def main():
     p.add_argument('--seed', dest='seed0', type=int, default=52403,
                    help='RNG seed for reproducible runs, def=52403')
     
-    args = p.parse_args()
-    
-    pixel = args.pixel
-    r0 = args.r0
+    args    = p.parse_args()
+    pixel   = args.pixel
+    r0      = args.r0
     wavelen = args.wavelen
-    ngrid = args.ngrid
-    zlow = args.zlow
-    zhigh = args.zhigh
-    fhigh = args.fhigh
-    seed0 = args.seed0
-    size = 2 * ngrid * pixel
+    ngrid   = args.ngrid
+    zlow    = args.zlow
+    zhigh   = args.zhigh
+    fhigh   = args.fhigh
+    seed0   = args.seed0
+    size    = 2 * ngrid * pixel
     
     print('Simulating atmosphere')
     
