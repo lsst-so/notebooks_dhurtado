@@ -166,7 +166,7 @@ def main():
     # Diagnostics
     scint = np.sum((np.abs(u1)**2 - 1)**2) / (2 * ngrid) ** 2
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
-    #intensity = np.abs(u1) ** 2
+    intensity = np.abs(u1) ** 2
     
     print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
