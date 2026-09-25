@@ -10,27 +10,15 @@ Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
-import codecs
-import json
-import logging
-import math
-import matplotlib as mpl
+import argparse
 import matplotlib.pyplot as plt
-import matplotlib.colors as colors
-import matplotlib.animation as animation
 import numpy as np
-import os
-from scipy import optimize
-import sys
-from tqdm.notebook import tqdm
 
-from astropy.io import fits
-import datetime
-from IPython.display import display, clear_output
-from scipy.signal import detrend, find_peaks
-from scipy.ndimage import zoom, map_coordinates, shift as ndshift
-
-import zernike
+from d_simatm import simatm
+from d_ringsim import ringsim
+from d_cubecoef import cubecoef
+from d_statmom import statmom
+from d_weights import computeweight
 
 
 
@@ -38,7 +26,7 @@ def main():
 
     p = argparse.ArgumentParser()
 
-    # --- Telescope / detector (sim1.par) ---
+    # Telescope / detector (sim1.par)
     p.add_argument('--diam', dest='d', type=float, default=0.304,
                    help='Aperture diameter, meters, def=0.304')
     p.add_argument('--effl', dest='effl', type=float, default=1.20845,
@@ -64,7 +52,7 @@ def main():
     p.add_argument('--ron', dest='ron', type=float, default=0,
                    help='Readout noise, electrons, def=0')
 
-    # --- Atmosphere / observation (settings cell) ---
+    # Atmosphere / observation
     p.add_argument('--seeing', dest='seeing', type=float, default=1,
                    help='Seeing in arcsec at 0.5 micron, def=1')
     p.add_argument('--zlow', dest='zlow', type=float, default=500,
@@ -81,8 +69,6 @@ def main():
                    help='Fixed RNG seed for reproducible runs, def=None (random)')
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
                    help='Half size of the atmosphere grid to simulate, def=512')
-    p.add_argument('--debug', dest='debug_str', type=str, default='DEBUG',
-                   help='Debug level, logger accepted values, def=INFO')
 
     args = p.parse_args()
 
@@ -106,11 +92,79 @@ def main():
     gain = args.gain
     seed0 = args.seed0
     ngrid = args.ngrid
-    debug_str = args.debug_str
 
     # Derived from inputs
     pixscale = pixsize / effl * 206265
     r0 = 0.98 * wavelen / seeing * 206265.0
+
+    display = True
+
+    simatm(pixel, r0, wavelen=wavelen, ngrid=ngrid, zlow=zlow, zhigh=zhigh,
+           fhigh=highfrac, seed0=seed0)
+
+    cubefile = ringsim(d, effl, eps, pdist, pixsize, ron=ron, gain=gain,
+                       starmag=starmag, display=display)
+
+    impar, coef = cubecoef(cubefile, mmax=mmax, nsect=nsect, drad=drad,
+                           interpol=interpol, display=display)
+
+    par, data = statmom(impar, coef, mmax=mmax, nsect=nsect, display=display)
+
+    weight = computeweight(par)
+
+    moments = data['moments']
+    noisepar = impar['noisepar']
+
+    # Noise on the angular and radial coefficients
+    flux = impar['flux']                                   # star flux, ADU per frame
+    anoise = noisepar[0] / flux + noisepar[1] * (ron / flux) ** 2  # noise variance of a-coef
+    flux1 = flux / nsect                                   # flux per sector
+    rnoise1 = 2 * (noisepar[2] / flux1 + noisepar[3] * (ron / flux1) ** 2 / nsect)  # radius noise, pix^2
+
+    # IDL-named weight arrays pulled out of the getweight5 'weight' dict
+    z = np.array(weight['z'])              # nominal weight-distance grid [m] (len 16)
+    wt0 = np.array(weight['wt0']).T        # transpose to (m, nz) to match IDL wt0[m, z]
+    ucoef0 = np.array(weight['ucoef0'])
+    mm = weight['umm']
+
+    # Angular power spectrum and covariance from statmom
+    powspec = np.array(moments['var'], float)
+    covspec = np.array(moments['cov'], float)
+
+    # Standard altitude layers (0, 0.25 km, 0.5 km, 1 km ... 16 km)
+    nz = 8
+    z0 = np.concatenate(([0], 1000 * (np.power(2, (np.arange(nz - 1) - 2)))))  # 2: IDL '2.' float base allows negative exponents
+
+    # Noise-subtract the power and get the scintillation index (testsimul.pro lines 66-67)
+    powspec = np.maximum(powspec - anoise, 0)
+    totvar = float(np.sum(powspec))
+
+    # Interpolate the weighting functions onto the z0 altitude grid
+    m = wt0.shape[0]                       # number of m-terms (mmax+1)
+    wt = np.zeros((m, nz), dtype=np.float64)
+    for i in range(m):
+        wt[i, :] = np.interp(z0, z, wt0[i, :])
+
+    # Radius rms from statmom (used as radvar = rrms**2 - rnoise1 in the report cell)
+    rrms = np.sqrt(moments['rvar'])
+
+    # Plot angular power spectrum, covariance and noise floor
+    if display:
+        arg = np.arange(len(powspec))
+        plt.figure('Angular power / covariance / noise', figsize=(7, 5))
+        plt.semilogy(arg, np.maximum(np.array(moments['var'], float), 1e-12), 'k-o', label='power')
+        plt.semilogy(arg, np.maximum(covspec, 1e-12), 'r--', label='covariance')
+        plt.axhline(max(anoise, 1e-12), ls=':', color='b', label='noise')
+        plt.ylim(10e-6)
+        plt.xlim(0,20)
+        plt.xticks(np.arange(0, 21, step=1))
+        plt.xlabel('m')
+        plt.ylabel('Power')
+        plt.title('Angular power spectrum')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
 
 if __name__ == '__main__':
     main()
