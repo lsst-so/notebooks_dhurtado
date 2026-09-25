@@ -67,9 +67,12 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     
     wavelen  = float(hdr['WAVELEN'])
     d        = float(hdr['DIAM'])
+    effl     = float(hdr['EFFL'])
+    pdist    = float(hdr['CONJ_H'])
     pixel    = float(hdr['PIXGRID'])
     eps      = float(hdr['OBSC'])
     asperpix = float(hdr['PIXSCALE'])
+    ron      = float(hdr['RON'])
     
     # Out from parameters
     m = mmax 
@@ -320,23 +323,30 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     noisepar = [float(noise1), float(noise2), float(noise1r), float(noise2r)]
     
     impar = {
-        'backgr': background,
-        'flux': flux,
-        'fluxvar': fluxvar,
-        'rad': rad_mean,
-        'rwidth': rwidth,
-        'xc': xc_mean,
-        'yc': yc_mean,
-        'xcvar': xcvar,
-        'ycvar': ycvar,
-        'coma': coma,
-        'angle': angle,
+        'backgr':   background,
+        'flux':     flux,
+        'fluxvar':  fluxvar,
+        'rad':      rad_mean,
+        'rwidth':   rwidth,
+        'xc':       xc_mean,
+        'yc':       yc_mean,
+        'xcvar':    xcvar,
+        'ycvar':    ycvar,
+        'coma':     coma,
+        'angle':    angle,
         'contrast': float(np.mean(contrast)),
         'noisepar': noisepar,
-        'coef': coef,
-        'nsect': nsect,
-        'mmax': mmax,
-        'asperpix': asperpix}
+        'nsect':    nsect,
+        'mmax':     mmax,
+        'asperpix': asperpix,
+        'd':        d,
+        'effl':     effl,
+        'eps':      eps,
+        'pdist':    pdist,
+        'ron':      ron,
+        'wavelen':  wavelen,
+        'pixel':    pixel
+            }
     
     print(f'Cube processed! Parameters saved')
     
@@ -353,7 +363,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         plt.show()
         plt.clf
     
-    return impar
+    return impar, coef
 
 
 if __name__ == '__main__':

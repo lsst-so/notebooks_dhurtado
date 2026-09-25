@@ -443,14 +443,13 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     header['CONJ_H'] = (float(pdist), 'Conjugation height in meters')
     header['WAVELEN'] = (float(wavelen), 'Wavelength in meters')
     header['EXPOSURE'] = (float(texp*1e6), 'Exposure time in seconds')
+    header['RON'] = (float(ron), 'Read out noise')
+    header['GAIN'] = (float(gain), 'Detector gain (cube2.py reads as float)')
     header['MAG'] = (float(starmag), 'Stellar magnitude')
     header['SEEING'] = (float(seeing), 'Input seeing in arcseconds')
     header['CAM'] = (int(nccd), 'Camera dimensions')
     header['PIXGRID'] = (int(pixel), 'Input grid pixel screen size')
     header['PIXSCALE'] = (float(asperpix), 'Arcseconds per pixel')
-    # Keys expected by cube2.py
-    # Note: cube2.py reads EXPOSURE as microseconds (multiplies by 1e-6)
-    header['GAIN'] = (float(gain), 'Detector gain (cube2.py reads as float)')
     header['STAR'] = ('', 'Star name (optional in cube2.py)')
     
     # mmax = args.mmax
