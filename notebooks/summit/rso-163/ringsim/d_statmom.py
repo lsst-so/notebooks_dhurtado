@@ -23,7 +23,7 @@ def main():
     
     p.add_argument('impar', type=dict,
                    help='Image parameters')
-    p.add_argument('coef', type=numpy.array,
+    p.add_argument('coef', type=np.array,
                    help='Coefficient array from cubecoef')
     p.add_argument('--mmax', dest='mmax', type=int, default=20,
                    help='Max order of angular signals, def=20')
@@ -44,15 +44,7 @@ def main():
 
 
 def statmom(impar, coef, mmax=20, nsect=8, display=True):
-
-    # Unpack the values statmom needs from cubecoef's impar dict
-    noisepar = impar['noisepar']
-    asperpix = impar['asperpix']
-    d        = impar['d']
-    eps      = impar['eps']
-    pdist    = impar['pdist']
-    ron      = impar['ron']
-
+    
     # Calculation of statistical moments
     m = mmax
     
@@ -113,37 +105,23 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         'mcoef': mcoef.tolist()
                 }
     
+    # Assemble data dict from the sim1.par-cell variables for next scripts
     data = {
-        'image': {
-            'impar': impar, 
-            'noisepar': noisepar
-                }, 
-        'moments': moments
-            }
-    
-    # Assemble <par> from the sim1.par-cell variables for next cells
-    par = {
-        'telescope': {
-            'D': d, 
-            'eps': eps, 
-            'pdist': pdist,
-            'pixel': asperpix, 
-            'ron': ron,
-            'ringradpix': impar['rad']
-            # Use the ring radius MEASURED from this cube, not the sim1.par default.
-                        },
+        'impar': impar,
+        'moments': moments,
         'profrest': {
             'mmax': mmax,
-            'wavelen': wavelen,
+            'wavelen': impar['wavelen'],
             'sp':  [1.0],   # flat single-wavelength response 
             'weightfile': 'weights.json',
                     },
             }
     print('Par file created with',
-            'D:', d, 'eps:', eps, 'pdist:', pdist,  f' \npixel (asperpix):', asperpix, 
-            'ringradpix:', impar['rad'], 'ron:', ron)
+          'D:', data['impar']['d'], 'eps:', data['impar']['eps'], 
+          'pdist:', data['impar']['pdist'],f' \npixel (asperpix):', data['impar']['asperpix'], 
+          'ringradpix:', data['impar']['rad'], 'ron:', data['impar']['ron'])
     
-    return par, data
+    return data
 
 if __name__ == '__main__':
     main()
