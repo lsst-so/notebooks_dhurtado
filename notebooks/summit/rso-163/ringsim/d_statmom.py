@@ -5,6 +5,7 @@ Computes the statistical moments (statmom.pro) of the per-frame
 angular coefficients produced by cubecoef: variances, covariances,
 and mean aberration coefficients.
 
+Currently not compatible with CLI due to tuple return
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
@@ -84,7 +85,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
     
     if display:
         arg = np.arange(m + 1)
-    
+        
         plt.figure('Angular Power Spectrum', figsize=(7, 5))
         plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
         plt.semilogy(arg, cov, 'r--', label='Covariance')
@@ -120,9 +121,10 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
             'wavelen': [impar['wavelen']],
             'sp':  [1.0],                   # flat single-wavelength response
             'weightfile': 'weights.json',
-                    },
+            'nsect': nsect
+                    }
             }
-
+    
     # Assemble <data> for profrest.py profile restoration.
     data = {
         'image': {
@@ -130,13 +132,13 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
             'noisepar': impar['noisepar']},
         'moments': moments,
             }
-
+    
     print('Par file created with',
           'D:', par['telescope']['D'], 'eps:', par['telescope']['eps'],
           'pdist:', par['telescope']['pdist'],
           '\npixel (asperpix):', par['telescope']['pixel'],
           'ringradpix:', par['telescope']['ringradpix'], 'ron:', par['telescope']['ron'])
-
+    
     return par, data
 
 if __name__ == '__main__':
