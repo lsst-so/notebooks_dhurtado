@@ -105,23 +105,39 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         'mcoef': mcoef.tolist()
                 }
     
-    # Assemble data dict from the sim1.par-cell variables for next scripts
-    data = {
-        'impar': impar,
-        'moments': moments,
+    # Assemble <par> for what weights.py expects.
+    par = {
+        'telescope': {
+            'D': impar['d'],
+            'eps': impar['eps'],
+            'pdist': impar['pdist'],
+            'pixel': impar['asperpix'],     # detector plate scale [arcsec/pix]
+            'ringradpix': impar['rad'],     # ring radius MEASURED from this cube
+            'ron': impar['ron'],
+                    },
         'profrest': {
             'mmax': mmax,
-            'wavelen': impar['wavelen'],
-            'sp':  [1.0],   # flat single-wavelength response 
+            'wavelen': [impar['wavelen']],
+            'sp':  [1.0],                   # flat single-wavelength response
             'weightfile': 'weights.json',
                     },
             }
+
+    # Assemble <data> for profrest.py profile restoration.
+    data = {
+        'image': {
+            'impar': impar, 
+            'noisepar': impar['noisepar']},
+        'moments': moments,
+            }
+
     print('Par file created with',
-          'D:', data['impar']['d'], 'eps:', data['impar']['eps'], 
-          'pdist:', data['impar']['pdist'],f' \npixel (asperpix):', data['impar']['asperpix'], 
-          'ringradpix:', data['impar']['rad'], 'ron:', data['impar']['ron'])
-    
-    return data
+          'D:', par['telescope']['D'], 'eps:', par['telescope']['eps'],
+          'pdist:', par['telescope']['pdist'],
+          '\npixel (asperpix):', par['telescope']['pixel'],
+          'ringradpix:', par['telescope']['ringradpix'], 'ron:', par['telescope']['ron'])
+
+    return par, data
 
 if __name__ == '__main__':
     main()
