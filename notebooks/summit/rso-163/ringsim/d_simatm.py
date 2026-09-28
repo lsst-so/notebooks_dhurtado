@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
 '''
-Creates the atmosphere for simulation
-of ring images.
+Create the atmosphere for simulation.
+Based on input parameters (or left at default),
+constructs an atmosphere screen.
+Currently does not support debugging
+
+Necessary parameters:
+pixel
+r0
+
+Parameters with defaults:
+wavelen
+ngrid
+zlow
+zhigh
+fhigh
+seed0
 
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
 
 '''
-import logging
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import numpy as np
-import os
-import pandas as pd
-import scipy as sci
-from tqdm.notebook import tqdm
 import argparse
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+import numpy as np
+import logging # Not supported yet
 
 
 
@@ -25,41 +35,48 @@ def main():
     p = argparse.ArgumentParser()
     
     p.add_argument('pixel', type=float,
-                   help='TBD')
+                   help='Grid sampling, meters per grid pixel (NOT arcsecs)')
     p.add_argument('r0', type=float,
                    help='Fried parameter from seeing')
     p.add_argument('--wavelen', dest='wavelen', type=float, default=0.6e-6,
                    help='Wavelength of reference light, in meters, def=0.6e-6')
-    p.add_argument('--ngrid', dest='ngrid', type=float, default=1024,
-                   help='Half size of the atmosphere grid to simulate, def=1024')
+    p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
+                   help='Half size of the atmosphere grid to simulate, def=512')
     p.add_argument('--zlow', dest='zlow', type=float, default=500,
                    help='Low layer altitude, def=500')
     p.add_argument('--zhigh', dest='zhigh', type=float, default=10500,
                    help='High layer altitude, def=10500')
     p.add_argument('--fhigh', dest='fhigh', type=float, default=0.1,
-                   help='Fraction of high layer (?), def=0.1')
-    p.add_argument('--debug', dest='debug_str', type=str, default='DEBUG',
-                   help='Debug level, logger accepted values, def=INFO')
+                   help='Fraction of high layer, def=0.1')
+    p.add_argument('--seed', dest='seed0', type=int, default=52403,
+                   help='RNG seed for reproducible runs, def=52403')
     
-    args = p.parse_args()
-    
-    #Is there a way to make this easier?
-    pixel = args.pixel
-    r0 = args.r0
+    args    = p.parse_args()
+    pixel   = args.pixel
+    r0      = args.r0
     wavelen = args.wavelen
-    ngrid = args.ngrid
-    zlow = args.zlow
-    zhigh = args.zhigh
-    fhigh = args.fhigh
-    debug_str = args.debug_str
-    size = 2 * ngrid * pixel
+    ngrid   = args.ngrid
+    zlow    = args.zlow
+    zhigh   = args.zhigh
+    fhigh   = args.fhigh
+    seed0   = args.seed0
+
+    return simatm(pixel, r0, wavelen, ngrid, zlow, zhigh, fhigh, seed0)
+
+
+def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
+           fhigh=0.1, seed0=52403):
+
+    size    = 2 * ngrid * pixel
     
     print('Simulating atmosphere')
     
-    tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen/np.pi) ** 2) # Turbulence integral in meters^1/3
+    print(f'size: {size} \n ngrid: {ngrid}')
+    
+    tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2) # Turbulence integral in meters^1/3
     see = (tint0 / 6.83e-13) ** (0.6)
-    tinthigh = tint0 * highfrac            # High layer integral
-    tintlow = tint0 * (1 - highfrac)       # Low layer integral
+    tinthigh = tint0 * fhigh            # High layer integral
+    tintlow = tint0 * (1 - fhigh)       # Low layer integral
     if zlow >= zhigh:
         raise ValueError(f"Inconsistency: zlow ({zlow}) can't be greater or equal than zhigh ({zhigh})")
     
@@ -71,7 +88,7 @@ def main():
     print(f'Seeing (arcsec): {see}')
     
     # For phase simulations
-    if highfrac != 0:
+    if fhigh != 0:
         facthigh = np.sqrt(0.023) * ((size/r0high) ** (5/6))
     else:
         facthigh = 0
@@ -85,16 +102,15 @@ def main():
     # Create Fresnel filters
     farg = np.pi * wavelen / (size ** 2) * r ** 2
     
-    # Set seed for rng, if seed0 is provided, use it. Otherwise, let the OS provide a random one
-    if 'seed0' in globals() and seed0 is not None:
-        rng = np.random.default_rng(seed0)
-        logger.debug(f'Simulation on fixed seed: {seed0}.')
+    if seed0 is None:
+        seed0 = np.random.SeedSequence().entropy  # random integer seed
+        print(f'Simulation on random seed: {seed0}.')
     else:
-        rng = np.random.default_rng()
-        logger.debug('Simulation on random seed.')
+        print(f'Simulation on fixed seed: {seed0}.')
+    rng = np.random.default_rng(seed0)
     
     # Simulate turbulence in high layer
-    if highfrac > 0:
+    if fhigh > 0:
         print('Simulating high layer')
         rng_complex = rng.normal(size=(ngrid*2, ngrid*2)) +1j * rng.normal(size=(ngrid*2, ngrid*2))
         
@@ -147,9 +163,10 @@ def main():
         wavelen=wavelen,
         see=see,
         r0=r0,
-        highfrac=highfrac,
+        fhigh=fhigh,
         zhigh=zhigh,
-        zlow=zlow
+        zlow=zlow,
+        seed0=seed0
         )
     
     # Diagnostics
@@ -157,14 +174,19 @@ def main():
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
     intensity = np.abs(u1) ** 2
     
-    print(f"Rytov variance, simulated: {rytov}, {scint}")
+    print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
     plt.figure(figsize=(7, 7))
-    plt.imshow(intensity, cmap='GnBu', origin='lower')
+    plt.imshow(intensity, cmap='GnBu', origin='lower', norm=colors.LogNorm())
     plt.title('Simulated atmosphere')
     plt.tight_layout()
     plt.savefig('atmsim.jpg', dpi=300, format='jpg')
     #plt.show()
+
+    return {'u1': u1, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,
+            'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,
+            'zlow': zlow, 'seed0': seed0}
+
 
 if __name__ == '__main__':
     main()
