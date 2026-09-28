@@ -130,7 +130,7 @@ def restore(par, data, weight, zmat, display=True):
     # noise bias, see allcubes5.pro => noisecubes
     gain = data['cubepar']['gain']  # electrons per ADU
     #eladu = 3.60 * pow(10, -gain / 200)
-    eladu = 1.0 # sim counts photo-electrons directly (gain=0 in sim1.par => ADU == electrons); was 0.3 for a real gain=200 camera
+    eladu = 1 # sim counts photo-electrons directly (gain=0 in sim1.par => ADU == electrons); was 0.3 for a real gain=200 camera
     noisepar = data['image']['noisepar']  # list of 4 numbers
     fluxadu = float(data['image']['impar']['flux'])
     print(f'Fluxadu: {fluxadu}')
