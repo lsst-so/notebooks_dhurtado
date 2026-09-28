@@ -19,7 +19,7 @@ from d_ringsim import ringsim
 from d_cubecoef import cubecoef
 from d_statmom import statmom
 from d_weights import computeweight
-
+import d_profrest
 
 
 def main():
@@ -96,7 +96,7 @@ def main():
     # Derived from inputs
     pixscale = pixsize / effl * 206265
     r0 = 0.98 * wavelen / seeing * 206265.0
-
+    tint = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2)
     display = True
 
     simatm(pixel, r0, wavelen=wavelen, ngrid=ngrid, zlow=zlow, zhigh=zhigh,
@@ -164,7 +164,42 @@ def main():
         plt.legend()
         plt.grid(True)
         plt.show()
-
+    
+    
+    profile = d_profrest.main(par, data, weight) #, zmat, display)
+    
+    prof = np.array(profile['prof'], float) / 1e13
+    wind = float(profile['wind'])
+    
+    # Total and free-atmosphere turbulence integrals
+    jtot = np.sum(prof[:nz])
+    see = (jtot / 6.826e-13) ** 0.6
+    jfree = np.sum(prof[2:nz])
+    fsee = (jfree / 6.8e-13) ** 0.6
+    print(f'See, fsee:{see}{fsee}')
+    print(f'Scint: {totvar}')
+    
+    # Formatted array outputs matching IDL's (A12, 10F7.2) specifier
+    z_str = ''.join([f'{v:2.2f}' for v in (z0 * 1e-3)[:10]])
+    j_str = ''.join([f'{v:2.2f}' for v in (prof * 1e13)[:10]])
+    print(f'{'Z [km]:':<12}{z_str}')
+    print(f'{'J [1e-13]:':<12}{j_str}')
+    print(f'Wind: {wind}')
+    
+    # Alternative seeing from sector-radius variance
+    wtsect = np.sum(wt[0, :] * prof) / np.sum(prof)   # profile-weighted sector weight
+    lamd = (wavelen / d) * 206265                     # lambda/D in arcsec
+    radvar = rrms ** 2 - rnoise1                      # noise-corrected radius variance, pix^2
+    rvarnorm = radvar * (pixscale / lamd) ** 2        # variance in (lambda/D)^2 units
+    jtot2 = rvarnorm / wtsect / 4                     # zenith turbulence integral
+    see2 = (jtot2 / 6.826e-13) ** 0.6                 # seeing in arcsec
+    see2 = see2 / (1 - 0.40 * totvar)                 # scintillation saturation correction
+    print(f'Sector seeing: {see2}')
+    
+    print(f'Input seeing and J: {seeing}{tint * 1e13}')
+    print(f'Altitudes: {zlow}{zhigh}')
+    print('Simulated cube is processed!')
+    
 
 if __name__ == '__main__':
     main()
