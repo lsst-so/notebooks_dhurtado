@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.animation as animation  # noqa: F401  (needed so mpl.animation.PillowWriter resolves)
 import numpy as np
+import os
 
 from astropy.io import fits
 import datetime
@@ -223,7 +224,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar(ticks = (0,1))
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'aperture_mask.jpg'), dpi=300, format='jpg')
+        ##plt.show()
         plt.clf
     
     # Add defocus and spherical, a4 negative for intrafocal
@@ -243,7 +245,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'zernike.jpg'), dpi=300, format='jpg')
+        ##plt.show()
         plt.clf
     
     # Undistorted image
@@ -262,7 +265,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'fresnel.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
         plt.figure(figsize=(6, 6))
@@ -271,7 +275,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'shifted.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
         plt.figure(figsize=(6, 6))
@@ -280,7 +285,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'imh0_complex.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
         plt.figure(figsize=(6, 6))
@@ -289,7 +295,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'focus_centered.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
         
         plt.figure(figsize=(6, 6))
@@ -298,7 +305,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'imh0.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
     # Intensity normalization
@@ -412,7 +420,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             # Gif input
             writer.fig = fig  # Attach current figure instance to writer
             writer.grab_frame()  # Capture frame into GIF buffer
-            plt.show()
+            #plt.show()
             plt.clf
     
     print('Simulation done!')
@@ -428,7 +436,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         #plt.colorbar()
         plt.xlabel('X [pixels]')
         plt.ylabel('Y [pixels]')
-        plt.show()
+        plt.savefig(os.path.join('images', 'imaverage.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
         print(f'nap {nap} \n nccd {nccd} \n npixperpix {npixperpix} \n radpix {radpix}')

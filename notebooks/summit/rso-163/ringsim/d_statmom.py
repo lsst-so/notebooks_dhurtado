@@ -15,6 +15,7 @@ import argparse
 import logging  # debugging not supported
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 
 
@@ -86,7 +87,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
     if display:
         arg = np.arange(m + 1)
         
-        plt.figure('Angular Power Spectrum', figsize=(7, 5))
+        plt.figure(figsize=(7, 5))
         plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
         plt.semilogy(arg, cov, 'r--', label='Covariance')
         plt.xlabel('m')
@@ -94,7 +95,8 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         plt.title('Angular Mode Spectrum')
         plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
     # Assemble output dictionaries (same structure as cube2.py)

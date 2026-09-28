@@ -170,7 +170,6 @@ def restore(par, data, weight, zmat, display=True):
     
     if display:
         arg = np.arange(mmax) + 1                         # findgen(mmax)+1
-        plt.figure('Power spectrum fit')
         plt.errorbar(arg, varz, yerr=anoise, fmt='s', capsize=3,
                      label='powcorr')                     # plot, /ylog, psym=6 (squares)
         plt.semilogy(arg, varmod, 'k--', label='powmod')  # oplot, li=2 (dashed)
@@ -181,7 +180,8 @@ def restore(par, data, weight, zmat, display=True):
         plt.ylim(1e-4,1e-2)
         plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.savefig(os.path.join('images', 'power_spectrum.jpg'), dpi=300, format='jpg')
+        #plt.show()
     
     prof1 = prof * cosz  # zenith-corrected integrals
     jtot = np.sum(prof1)  # turbulence integral

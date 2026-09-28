@@ -13,6 +13,7 @@ Translated: D. Hurtado
 import argparse
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from d_simatm import simatm
 from d_ringsim import ringsim
@@ -151,7 +152,7 @@ def main():
     # Plot angular power spectrum, covariance and noise floor
     if display:
         arg = np.arange(len(powspec))
-        plt.figure('Angular power / covariance / noise', figsize=(7, 5))
+        plt.figure(figsize=(7, 5))
         plt.semilogy(arg, np.maximum(np.array(moments['var'], float), 1e-12), 'k-o', label='power')
         plt.semilogy(arg, np.maximum(covspec, 1e-12), 'r--', label='covariance')
         plt.axhline(max(anoise, 1e-12), ls=':', color='b', label='noise')
@@ -163,7 +164,8 @@ def main():
         plt.title('Angular power spectrum')
         plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
+        #plt.show()
     
     
     profile = d_profrest.main(par, data, weight) #, zmat, display)

@@ -23,11 +23,11 @@ Translated: D. Hurtado
 
 '''
 import argparse
+import logging # Not supported yet
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import numpy as np
-import logging # Not supported yet
-
+import os
 
 
 def main():
@@ -180,7 +180,8 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     plt.imshow(intensity, cmap='GnBu', origin='lower', norm=colors.LogNorm())
     plt.title('Simulated atmosphere')
     plt.tight_layout()
-    plt.savefig('atmsim.jpg', dpi=300, format='jpg')
+    os.makedirs('images', exist_ok=True)   # store output images in ./images
+    plt.savefig(os.path.join('images', 'atmsim.jpg'), dpi=300, format='jpg')
     #plt.show()
 
     return {'u1': u1, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,

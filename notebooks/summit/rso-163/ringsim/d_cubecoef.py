@@ -16,6 +16,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation # noqa: F401
 import numpy as np
+import os
 
 from astropy.io import fits
 
@@ -193,7 +194,6 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     # Optional control plot before main loop
     if display:
         imax = np.max(imgcent[:, nx // 2])
-        plt.figure('Sector Definition Control')
         plt.plot(x[0, :], np.maximum(imgcent[:, nx // 2], 0), 'b-', label='Profile')
         plt.plot(-x[0, :], imgcent[:, nx // 2], 'r--', label='Mirrored')
         
@@ -280,7 +280,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
             # Gif input
             writer.fig = fig  # Attach current figure instance to writer
             writer.grab_frame()  # Capture frame into GIF buffer
-            plt.show()
+            #plt.show()
             plt.clf
     
     writer.finish()  # Compile output.gif
@@ -352,7 +352,6 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     print(f'Cube processed! Parameters saved')
     
     if display:
-        plt.figure('Centroid Track (pix)')
         plt.plot(xcent, ycent, '+', label='Centroid (X, Y) [pix]',)
         #plt.plot(ycent * pixel, linestyle='--', label='Y-drift vs Frame')
         plt.axis('equal')
@@ -361,7 +360,8 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         plt.title('Centroid Position & Drift [pix]')
         #plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.savefig(os.path.join('images', 'centroid_drift.jpg'), dpi=300, format='jpg')
+        #plt.show()
         plt.clf
     
     return impar, coef
