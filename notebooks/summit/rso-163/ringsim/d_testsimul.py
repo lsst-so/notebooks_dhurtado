@@ -134,7 +134,7 @@ def main():
 
     # Standard altitude layers (0, 0.25 km, 0.5 km, 1 km ... 16 km)
     nz = 8
-    z0 = np.concatenate(([0], 1000 * (np.power(2, (np.arange(nz - 1) - 2)))))  # 2: IDL '2.' float base allows negative exponents
+    z0 = np.concatenate(([0], 1000 * (np.power(2.0, (np.arange(nz - 1) - 2)))))  # 2.0: float base allows negative exponents
 
     # Noise-subtract the power and get the scintillation index (testsimul.pro lines 66-67)
     powspec = np.maximum(powspec - anoise, 0)
@@ -196,10 +196,10 @@ def main():
     jtot2 = rvarnorm / wtsect / 4                     # zenith turbulence integral
     see2 = (jtot2 / 6.826e-13) ** 0.6                 # seeing in arcsec
     see2 = see2 / (1 - 0.40 * totvar)                 # scintillation saturation correction
-    print(f'Sector seeing: {see2}')
     
-    print(f'Input seeing and J: {seeing}{tint * 1e13}')
-    print(f'Altitudes: {zlow}{zhigh}')
+    print(f'Sector seeing: {see2}')
+    print(f'Input seeing and J: {seeing}, {tint * 1e13}')
+    print(f'Altitudes: {zlow} -> {zhigh}')
     print('Simulated cube is processed!')
     
 

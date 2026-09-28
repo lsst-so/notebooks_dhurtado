@@ -62,21 +62,21 @@ def main():
     
     # Hard-coded Parameters, these change with args.parse
     args     = p.parse_args()
-    d        = args.d                   # meters, mirror diameter
-    effl     = args.effl             # meters, effective focal length
-    eps      = args.eps               # fraction, central obscuration 
-    pdist    = args.pdist           # meters, H (Conjugation distance)
+    d        = args.d             # meters, mirror diameter
+    effl     = args.effl          # meters, effective focal length
+    eps      = args.eps           # fraction, central obscuration 
+    pdist    = args.pdist         # meters, H (Conjugation distance)
     pixsize  = args.pixsize       # meters, CCD pixel size
-    texp     = args.texp             # seconds, exposure time
+    texp     = args.texp          # seconds, exposure time
     starmag  = args.starmag       # star magnitude
-    ron      = args.ron               # electrons, read out noise 
-    gain     = args.gain             # db, camera gain
-    tacc     = args.tacc             # seconds, accumulation time
-    texp     = args.texp             # seconds, exposition time
-    wind     = args.wind             # m/s, wind speed
+    ron      = args.ron           # electrons, read out noise 
+    gain     = args.gain          # db, camera gain
+    tacc     = args.tacc          # seconds, accumulation time
+    texp     = args.texp          # seconds, exposition time
+    wind     = args.wind          # m/s, wind speed
     jitter   = args.jitter
-    oversamp = args.oversamp     # check to oversample
-    blur     = args.blur             # check for blurring
+    oversamp = args.oversamp      # check to oversample
+    blur     = args.blur          # check for blurring
     display  = args.display       # check for image display
 
     return ringsim(d, effl, eps, pdist, pixsize, texp, tacc, ron, gain,
@@ -315,7 +315,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     # Calculate expected radius using clean centered coordinates
     rring = np.sum(imh0 * r) / normconst                             
     rradpix2 = np.sum(imh0*r) / np.sum(imh0) # true ring radius in fine pixels
-    rad = rradpix2 / ccdbin  # radius in CCD pixels (CHANGED: ccdbin, not npixperpix)
+    rad = rradpix2 / ccdbin  # radius in CCD pixels
     
     print(f'True ring radius [pix]: {rring}')
     print(f'True ring radius [arcsec]: {(rring * asperpix)}')
@@ -366,9 +366,6 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         focus_centered = np.fft.fftshift(imh0_complex if 'imh0_complex' in locals() else imh1_complex)
         imh1 = np.abs(np.fft.fftshift(imh1_complex))**2
         
-        # Block-sum (rebin) from fine grid (nap x nap) down to CCD resolution (nccd x nccd)
-        # CHANGED: resample fine image (nap) to detector grid (nccd) at exactly asperpix.
-        # Flux-conserving: *(nap/nccd)**2 restores the total the old block-sum gave.
         impix = zoom(imh1, nccd / nap, order=1) * (nap / nccd) ** 2 / normconst
         
         # Optional Jitter / Image Shifts
@@ -457,7 +454,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     header['MAG'] = (float(starmag), 'Stellar magnitude')
     header['SEEING'] = (float(seeing), 'Input seeing in arcseconds')
     header['CAM'] = (int(nccd), 'Camera dimensions')
-    header['PIXGRID'] = (int(pixel), 'Input grid pixel screen size')
+    header['PIXGRID'] = (float(pixel), 'Input grid pixel size [m]')
     header['PIXSCALE'] = (float(asperpix), 'Arcseconds per pixel')
     header['STAR'] = ('', 'Star name (optional in cube2.py)')
     

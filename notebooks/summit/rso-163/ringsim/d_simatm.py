@@ -103,7 +103,10 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     farg = np.pi * wavelen / (size ** 2) * r ** 2
     
     if seed0 is None:
-        seed0 = np.random.SeedSequence().entropy  # random integer seed
+        # Draw a random seed that fits in int64 so np.savez stores it as a plain
+        # integer (SeedSequence().entropy returns a 128-bit int -> object array,
+        # which np.load refuses without allow_pickle).
+        seed0 = int(np.random.SeedSequence().generate_state(1, dtype=np.uint32)[0])
         print(f'Simulation on random seed: {seed0}.')
     else:
         print(f'Simulation on fixed seed: {seed0}.')
