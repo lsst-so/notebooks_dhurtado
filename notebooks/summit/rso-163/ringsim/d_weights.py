@@ -311,10 +311,15 @@ def computeweight(par):  # actual weight calculation
 
     # Serialize and save the weights
     weight = {
-        'z':z.tolist(),'wt0':wt0.tolist(),
-        'wtslope':wtslope.tolist(),'ucoef0':ucoef0.tolist(),
-        'ucoefslope':ucoefslope.tolist(),'umm':mm,'lameff':lameff,
-        'ringrad':ringrad,'pdist':pdist
+        'z':          z.tolist(),
+        'wt0':        wt0.tolist(),
+        'wtslope':    wtslope.tolist(),
+        'ucoef0':     ucoef0.tolist(),
+        'ucoefslope': ucoefslope.tolist(),
+        'umm':        mm,
+        'lameff':     lameff,
+        'ringrad':    ringrad,
+        'pdist':      pdist
     }
 
     json_output_file = par['profrest']['weightfile']
