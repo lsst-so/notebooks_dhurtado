@@ -40,6 +40,8 @@ Workspace Overview
 
 2. For code standards, we should follow PEP-8 as reference.
 
+3. Anyother necesary disclaimer will be added later.
+
 4. In the current working directory (ringsim) exists a handoff file, as first step to documentation and heredability.
 
-3. Anyother necesary disclaimer will be added later.
+5. Most of scripts are untested unless stated as tested.
