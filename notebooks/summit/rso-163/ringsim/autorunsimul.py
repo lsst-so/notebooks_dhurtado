@@ -1,6 +1,3 @@
-# This script auto-runs and inputted X amount of times
-# testsimul, captures the outputs and stores them in a .csv
-
 '''
 Auth: Diego H.
 
@@ -26,9 +23,8 @@ def main():
     print(f'Running {t} simulations')
     
     for i in range(0,t):
+        if i % 5 == 0: print(f'{i}/{t}')
         d_testsimul.main(['--verbose', '', '--display', ''])  # verb=False, display=False
-        if i % 10 == 0:
-            print(f'{i}/{t}')
     
     print(f'Simulation ran {t} times!')
 

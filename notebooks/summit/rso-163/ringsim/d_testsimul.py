@@ -67,8 +67,8 @@ def main(argv=None):
                    help='Star magnitude, def=2')
     p.add_argument('--gain', dest='gain', type=float, default=0,
                    help='Camera gain setting, def=0')
-    p.add_argument('--seed0', dest='seed0', type=int, default=None,
-                   help='Fixed RNG seed for reproducible runs, def=None (random)')
+    p.add_argument('--seed0', dest='seed0', type=int, default=52403,
+                   help='Fixed RNG seed for reproducible runs, def=52403')
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
                    help='Half size of the atmosphere grid to simulate, def=512')
     p.add_argument('--display', dest='display', type=bool, default=True,
@@ -212,17 +212,17 @@ def main(argv=None):
     # Simulation "truth" inputs (not carried in the pipeline dicts) so the
     # restored values can be compared against what was fed in.
     inputs = OrderedDict([
-        ('seeing_in_arcsec', seeing),
-        ('zlow_in_m', zlow),
-        ('zhigh_in_m', zhigh),
-        ('highfrac_in', highfrac),
-        ('starmag_in', starmag),
-        ('gain_in', gain),
-        ('seed0_in', seed0 if seed0 is not None else -1),
-        ('ngrid_in', ngrid),
-        ('r0_in_m', r0),
-        ('tint_in', tint),
-        ('pixscale_in', pixscale),
+        ('input_seeing_arcsec', seeing),
+        ('input_zlow_m', zlow),
+        ('input_zhigh_m', zhigh),
+        ('input_highfrac', highfrac),
+        ('input_starmag', starmag),
+        ('input_gain', gain),
+        ('input_seed0', seed0 if seed0 is not None else -1),
+        ('input_ngrid', ngrid),
+        ('input_r0_m', r0),
+        ('input_tint', tint),
+        ('input_pixscale', pixscale),
     ])
 
     # Build the dict and write it out
@@ -230,8 +230,8 @@ def main(argv=None):
     results_to_csv(results)
     
     # Human-readable echo (kept for interactive use)
-    for name, value in results.items():
-        if verb: print(f'{name:<20} {value}')
+    #for name, value in results.items():
+        #print(f'{name:<20} {value}')
     
     if verb: print('\nSimulated cube is processed! Results written to testsimul_results.csv')
 

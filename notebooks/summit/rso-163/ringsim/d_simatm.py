@@ -48,8 +48,8 @@ def main():
                    help='High layer altitude, def=10500')
     p.add_argument('--fhigh', dest='fhigh', type=float, default=0.1,
                    help='Fraction of high layer, def=0.1')
-    p.add_argument('--seed', dest='seed0', type=int, default=None,
-                   help='RNG seed for reproducible runs, def=None')
+    p.add_argument('--seed', dest='seed0', type=int, default=52403,
+                   help='RNG seed for reproducible runs, def=52403')
     p.add_argument('--display', dest='display', type=bool, default=True,
                    help='Decides if images are displayed, boolean, def=True')
     p.add_argument('--verbose', dest='verb', type=bool, default=True,
