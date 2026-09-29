@@ -18,7 +18,7 @@ import zernike
 
 
 
-def main(par=None):
+def main(par=None, verb=True):
 
     # Import path: pass the par dict (from statmom) straight in.
     # CLI path: par is None, so read it from a --parfile JSON instead.
@@ -26,18 +26,21 @@ def main(par=None):
         p = argparse.ArgumentParser()
         p.add_argument('--parfile', dest='parfile', type=str, default=None,
                        help='JSON par file with telescope/profrest sections (from statmom)')
+        p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                       help='Print text into CLI, def=True')
         args = p.parse_args()
         par = getpar(args.parfile)
+        verb = args.verb
 
-    weight = computeweight(par)
-    print(f'\n Weights computed and saved to weights.json')
-    print('  z-layers = {},  coeffs/layer = {}'.format(len(weight['z']), len(weight['wt0'][0])))
-    print('  ring radius [pix] = {:.3f},  pdist [m] = {:.2f}'.format(weight['ringrad'], weight['pdist']))
+    weight = computeweight(par, verb)
+    if verb: print(f'\n Weights computed and saved to weights.json')
+    if verb: print('  z-layers = {},  coeffs/layer = {}'.format(len(weight['z']), len(weight['wt0'][0])))
+    if verb: print('  ring radius [pix] = {:.3f},  pdist [m] = {:.2f}'.format(weight['ringrad'], weight['pdist']))
     
     return weight
     
     
-def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8):
+def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,verb=True):
     # Computing parameters hard coded
     ngrid = 512   # half-size of computing grid [pix], only for inner calculations
     ksize = 6     # grid size/telescope diameter ratio
@@ -96,7 +99,7 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8):
     # Compute the masks
     ringradpix2 = np.sum(imh * r) / ninside # true ring radius in fine pixels
     ringrad = ringradpix2 * asperpix / pixel  # ring radius in CCD pixels
-    print ('Ring radius [pix]: ',ringrad)
+    if verb: print ('Ring radius [pix]: ',ringrad)
     drhopix = drho * lam0 / d / (1 - eps) * 2 * 206265 / asperpix # ring half-width [pix]
     filtap = (r >= ringradpix2 - drhopix) * (r <= ringradpix2 + drhopix) # radial part of image mask
     nm = mmax + 1  # number of angular coefficients
@@ -232,7 +235,7 @@ def getpar(parfile): # read parameters, return the dictionary <par>
     return par
 
 
-def computeweight(par):  # actual weight calculation
+def computeweight(par, verb=True):  # actual weight calculation
 
     # This should be argument parser
     d = float(par['telescope']['D'])
@@ -255,7 +258,7 @@ def computeweight(par):  # actual weight calculation
         s = 'Zrad:  '
         for i in range(0,7):
             s += ' {:.3f}'.format(zrad[i])
-        print(s)
+        if verb: print(s)
         #print(zrad)
     else:
          zn = zrad = []
@@ -274,30 +277,30 @@ def computeweight(par):  # actual weight calculation
     # Find propagation distance from ring radius. Use analytic approx. first
     Rmean = d * (1 + eps) / 4 # Mean of annulus radius
     HR = 0.85 * Rmean / pixscale * 206265 # H * R (proxy for alpha in papers)
-    print(f'Rmean = {d} * (1 + {eps}) / 4')
-    print(f'Initial H*R [m.pix] and Mean radius: {HR}, {Rmean}')
+    if verb: print(f'Rmean = {d} * (1 + {eps}) / 4')
+    if verb: print(f'Initial H*R [m.pix] and Mean radius: {HR}, {Rmean}')
 
     
     pdist1 = HR / ringradpix
-    wt0, ufunc0, ringrad = aweight(np.zeros(1),1,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect)
+    wt0, ufunc0, ringrad = aweight(np.zeros(1),1,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb)
     
     HR1 = ringrad * pdist # Adjust    
-    print(f'Expected Conjugation dist.: {pdist}')
+    if verb: print(f'Expected Conjugation dist.: {pdist}')
     pdist = HR1 / ringradpix
-    print(f'Calculated Conjugation dist.: {pdist1}')
-    print(f'Adjusted H*R [m.pix] and pdist: {HR1}, {pdist}')
+    if verb: print(f'Calculated Conjugation dist.: {pdist1}')
+    if verb: print(f'Adjusted H*R [m.pix] and pdist: {HR1}, {pdist}')
 
     # return
 
     # Weight for B-V=0
-    print(f'\n')
-    print('Computing weight for B-V=0...')
-    wt0, ufunc0, ringrad = aweight(z,mmax,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect) # arrays of [nz,mmax+1] dimension
+    if verb: print(f'\n')
+    if verb: print('Computing weight for B-V=0...')
+    wt0, ufunc0, ringrad = aweight(z,mmax,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
     hslope = pdist * ringrad
-    print(f'Ring radius and H*rad [m.pix]: {ringrad}, {hslope}')
+    if verb: print(f'Ring radius and H*rad [m.pix]: {ringrad}, {hslope}')
     # Weight for B-V=1
-    print('Computing weight for B-V=1...')
-    wt1, ufunc1, ringrad1 = aweight(z,mmax,d,eps,pdist,wav,sp1,1.5,pixscale,zn,zrad,nsect) # arrays of [nz,mmax+1] dimension
+    if verb: print('Computing weight for B-V=1...')
+    wt1, ufunc1, ringrad1 = aweight(z,mmax,d,eps,pdist,wav,sp1,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
 
     mm = [1,3,6,7,8,9] # selected frequencies for wind measurement
     ucoef0, resp0 = getucoef(ufunc0,z,mm)
@@ -326,8 +329,8 @@ def computeweight(par):  # actual weight calculation
     try:
         json.dump(weight, codecs.open(json_output_file, 'w', encoding='utf-8'), separators=(',', ':'), sort_keys=True, indent=4)
     except FileNotFoundError as err:
-        print('{}:{}'.format(err, json_output_file))
-    print('Saved weights in '+json_output_file)
+        if verb: print('{}:{}'.format(err, json_output_file))
+    if verb: print('Saved weights in '+json_output_file)
     return weight
 
 

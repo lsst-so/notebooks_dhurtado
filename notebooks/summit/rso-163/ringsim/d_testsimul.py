@@ -71,6 +71,10 @@ def main(argv=None):
                    help='Fixed RNG seed for reproducible runs, def=None (random)')
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
                    help='Half size of the atmosphere grid to simulate, def=512')
+    p.add_argument('--display', dest='display', type=bool, default=True,
+                   help='Save the displayed images in auto-folder, def=True')
+    p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                   help='Print text into CLI, def=True')
 
     args = p.parse_args(argv)
 
@@ -94,25 +98,26 @@ def main(argv=None):
     gain = args.gain
     seed0 = args.seed0
     ngrid = args.ngrid
+    display = bool(args.display)
+    verb = bool(args.verb)
 
     # Derived from inputs
     pixscale = pixsize / effl * 206265
     r0 = 0.98 * wavelen / seeing * 206265.0
     tint = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2)
-    display = True
 
     simatm(pixel, r0, wavelen=wavelen, ngrid=ngrid, zlow=zlow, zhigh=zhigh,
-           fhigh=highfrac, seed0=seed0)
+           fhigh=highfrac, seed0=seed0, display=display, verb=verb)
 
     cubefile = ringsim(d, effl, eps, pdist, pixsize, ron=ron, gain=gain,
-                       starmag=starmag, display=display)
+                       starmag=starmag, display=display, verb=verb)
 
     impar, coef = cubecoef(cubefile, mmax=mmax, nsect=nsect, drad=drad,
-                           interpol=interpol, display=display)
+                           interpol=interpol, display=display, verb=verb)
 
-    par, data = statmom(impar, coef, mmax=mmax, nsect=nsect, display=display)
+    par, data = statmom(impar, coef, mmax=mmax, nsect=nsect, display=display, verb=verb)
 
-    weight = computeweight(par)
+    weight = computeweight(par, verb=verb)
 
     moments = data['moments']
     noisepar = impar['noisepar']
@@ -170,7 +175,7 @@ def main(argv=None):
         plt.close()
     
     
-    profile = d_profrest.main(par, data, weight) #, zmat, display)
+    profile = d_profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
     
     prof = np.array(profile['prof'], float) / 1e13
     wind = float(profile['wind'])
@@ -180,15 +185,15 @@ def main(argv=None):
     see = (jtot / 6.826e-13) ** 0.6
     jfree = np.sum(prof[2:nz])
     fsee = (jfree / 6.8e-13) ** 0.6
-    print(f'See, fsee:{see}{fsee}')
-    print(f'Scint: {totvar}')
+    if verb: print(f'See, fsee:{see}{fsee}')
+    if verb: print(f'Scint: {totvar}')
     
     # Formatted array outputs matching IDL's (A12, 10F7.2) specifier
     z_str = ''.join([f'{v:2.2f}' for v in (z0 * 1e-3)[:10]])
     j_str = ''.join([f'{v:2.2f}' for v in (prof * 1e13)[:10]])
-    print(f'{'Z [km]:':<12}{z_str}')
-    print(f'{'J [1e-13]:':<12}{j_str}')
-    print(f'Wind: {wind}')
+    if verb: print(f'{'Z [km]:':<12}{z_str}')
+    if verb: print(f'{'J [1e-13]:':<12}{j_str}')
+    if verb: print(f'Wind: {wind}')
     
     # Alternative seeing from sector-radius variance
     wtsect = np.sum(wt[0, :] * prof) / np.sum(prof)   # profile-weighted sector weight
@@ -199,9 +204,9 @@ def main(argv=None):
     see2 = (jtot2 / 6.826e-13) ** 0.6                 # seeing in arcsec
     see2 = see2 / (1 - 0.40 * totvar)                 # scintillation saturation correction
     
-    print(f'Sector seeing: {see2}')
-    print(f'Input seeing and J: {seeing}, {tint * 1e13}')
-    print(f'Altitudes: {zlow} -> {zhigh}')
+    if verb: print(f'Sector seeing: {see2}')
+    if verb: print(f'Input seeing and J: {seeing}, {tint * 1e13}')
+    if verb: print(f'Altitudes: {zlow} -> {zhigh}')
     
         
     # Simulation "truth" inputs (not carried in the pipeline dicts) so the
@@ -226,9 +231,9 @@ def main(argv=None):
     
     # Human-readable echo (kept for interactive use)
     for name, value in results.items():
-        print(f'{name:<20} {value}')
+        if verb: print(f'{name:<20} {value}')
     
-    print('\nSimulated cube is processed! Results written to testsimul_results.csv')
+    if verb: print('\nSimulated cube is processed! Results written to testsimul_results.csv')
 
 
 def collect_results(par, data, profile, moments, coef, inputs=None):

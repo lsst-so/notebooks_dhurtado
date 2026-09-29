@@ -26,7 +26,7 @@ def main():
     print(f'Running {t} simulations')
     
     for i in range(0,t):
-        d_testsimul.main([])
+        d_testsimul.main(['--verbose', '', '--display', ''])  # verb=False, display=False
         if i % 10 == 0:
             print(f'{i}/{t}')
     

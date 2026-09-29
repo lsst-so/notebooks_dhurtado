@@ -21,7 +21,7 @@ from scipy import optimize
 
 def main(par=None, data=None, weight=None,
          zmatfile=os.path.join('andrei', 'zmat.json'),
-         zen=0, bv=0, gain=0, display=True):
+         zen=0, bv=0, gain=0, display=True, verb=True):
 
     # Import path: pass par/data/weight dicts (from statmom + computeweight)
     # straight in. CLI path: they are None, so read them from JSON files.
@@ -48,9 +48,11 @@ def main(par=None, data=None, weight=None,
                        help='Detector gain setting, def=0')
         p.add_argument('--display', dest='display', type=bool, default=True,
                        help='Decides if images are displayed, boolean, def=True')
-        
+        p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                       help='Print text into CLI, def=True')
+
         args = p.parse_args()
-        
+
         data = read_json(args.datafile)
         weight = read_json(args.weightfile)
         par = read_json(args.parfile)
@@ -59,6 +61,7 @@ def main(par=None, data=None, weight=None,
         bv = args.bv
         gain = args.gain
         display = args.display
+        verb = args.verb
 
     zmat = read_json(zmatfile)   # (20,5) saturation matrix, La Serena
 
@@ -69,12 +72,12 @@ def main(par=None, data=None, weight=None,
     data['starpar'] = {'zen': zen, 'BV': bv}    # simulated at zenith
     data['cubepar'] = {'gain': gain}            # detector gain from the sim1.par cell
 
-    profile = restore(par, data, weight, zmat, display)
+    profile = restore(par, data, weight, zmat, display, verb)
 
     prof = np.array(profile['prof'], float) / 1e13
     wind = float(profile['wind'])
     erms = float(profile['erms'])
-    print('Profile restored!')
+    if verb: print('Profile restored!')
 
     return profile
 
@@ -93,9 +96,9 @@ def read_json(filename): # read a json file, return a dictionary; returns None i
 # Profile restoration. Inputs: dictionaries of parameters, data, weights, and Z-matrix
 # Output: dictionary of profile parameters
 # Before calling Restore, run getzen.py to define the zenith distance and star color in data
-def restore(par, data, weight, zmat, display=True):
+def restore(par, data, weight, zmat, display=True, verb=True):
     
-    print(data['image']['impar'])
+    if verb: print(data['image']['impar'])
     
     var =      data['moments']['var']  # variance of a-coefficients
     cov =      data['moments']['cov']  # covariance of a-coefficients
@@ -133,7 +136,7 @@ def restore(par, data, weight, zmat, display=True):
     eladu = 1 # sim counts photo-electrons directly (gain=0 in sim1.par => ADU == electrons); was 0.3 for a real gain=200 camera
     noisepar = data['image']['noisepar']  # list of 4 numbers
     fluxadu = float(data['image']['impar']['flux'])
-    print(f'Fluxadu: {fluxadu}')
+    if verb: print(f'Fluxadu: {fluxadu}')
     flux = eladu * fluxadu  # flux in electrons
     
     anoise = float(noisepar[0]) / flux + float(noisepar[1]) * pow(par['telescope']['ron'] / flux, 2)  # noise variance of a-coef
@@ -166,7 +169,7 @@ def restore(par, data, weight, zmat, display=True):
     
     varmod = np.dot(a2, prof) / varwt
     erms = np.std(1. - varmod / varz)
-    print(f'RMS residual: {erms:.3f}')
+    if verb: print(f'RMS residual: {erms:.3f}')
     
     if display:
         arg = np.arange(mmax) + 1                         # findgen(mmax)+1
@@ -204,7 +207,7 @@ def restore(par, data, weight, zmat, display=True):
     jtot2 = rvarnorm / wcoef / 4  # turbulence intergal, m^1/3. Explain factor 4!
     see2 = pow(jtot2 * cosz / seeconst, 0.6)  # seeing at zenith, arcsec
     see2 *= 1 / (1 - 0.4 * totvar)  # saturation correction
-    print(f'Seeing (sect,tot,FA): {see2:.3f} {see:.3f} {fsee:.3f}')
+    if verb: print(f'Seeing (sect,tot,FA): {see2:.3f} {see:.3f} {fsee:.3f}')
     
     # Wind measurement
     texp = 1e-3  # hard-coded exposure time
@@ -216,7 +219,7 @@ def restore(par, data, weight, zmat, display=True):
     v2mom = np.sum(ucoef * delta)
     jwind = np.sum(prof[1:nz0])  # exclude ground layer, the speed is not zen-corrected
     v2 = pow(v2mom / jwind, 0.5)  # use profile uncorrected for zenith
-    print(f'Wind speed [m/s]: {v2:.3f}')
+    if verb: print(f'Wind speed [m/s]: {v2:.3f}')
     
     # tau_0 at 500nm
     r0 = pow(6.680e13 * jwind, -0.6)

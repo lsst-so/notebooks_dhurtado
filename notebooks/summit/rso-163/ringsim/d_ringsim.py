@@ -59,7 +59,9 @@ def main():
                    help="Decides if there's blurring, boolean, default=True")
     p.add_argument('--display', dest='display', type=bool, default=True,
                    help='Decides if images are displayed, boolean default=True')
-    
+    p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                   help='Print text into CLI, def=True')
+
     # Hard-coded Parameters, these change with args.parse
     args     = p.parse_args()
     d        = args.d             # meters, mirror diameter
@@ -78,14 +80,15 @@ def main():
     oversamp = args.oversamp      # check to oversample
     blur     = args.blur          # check for blurring
     display  = args.display       # check for image display
+    verb     = args.verb          # check for CLI text output
 
     return ringsim(d, effl, eps, pdist, pixsize, texp, tacc, ron, gain,
-                   starmag, wind, jitter, oversamp, blur, display)
+                   starmag, wind, jitter, oversamp, blur, display, verb)
 
 
 def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             starmag=1, wind=10, jitter=0, oversamp=True, blur=True,
-            display=True):
+            display=True, verb=True):
 
     with np.load('atm.npz') as data:
         u1        = data['u1']
@@ -107,17 +110,17 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     alpha = slide / size                              # tangent of slide angle
     
     pixscale =  (pixsize) / effl * 206265
-    print(f'Calculated pixel scale', pixscale)
+    if verb: print(f'Calculated pixel scale', pixscale)
     
-    print(f'Loaded {data}')
-    print('starmag, ron, d, eps, pdist, wind, size, ngrid')
-    print(starmag, ron, d, eps, pdist, wind, size, ngrid)
+    if verb: print(f'Loaded {data}')
+    if verb: print('starmag, ron, d, eps, pdist, wind, size, ngrid')
+    if verb: print(starmag, ron, d, eps, pdist, wind, size, ngrid)
     
     
     if blur:
         nblur = math.floor(wind * texp / pixel + 0.5)
             # ^math.floor^ returns integer like int(np.floor())
-        print(f'Averaging atmospheric screens, N={nblur}')
+        if verb: print(f'Averaging atmospheric screens, N={nblur}')
         if nblur > 1:
             tmp = np.copy(u1)
             for k in range(1, nblur):
@@ -129,12 +132,12 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     # Calculate seeing in arcseconds (206265 converts radians to arcseconds)
     seeing = 0.98 * wavelen / r0 * 206265
-    print(f'Seeing (arcsec): {round(seeing,5)} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {fhigh}')
-    print(f'Screen size (meters): {2 * ngrid * pixel} \n Pixel size (meters): {pixel}')
+    if verb: print(f'Seeing (arcsec): {round(seeing,5)} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {fhigh}')
+    if verb: print(f'Screen size (meters): {2 * ngrid * pixel} \n Pixel size (meters): {pixel}')
     
     # Total turbulence integral J (m^(1/3))
     tint = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2)
-    print(f'Input r0 (meters): {r0}, J: {tint}')
+    if verb: print(f'Input r0 (meters): {r0}, J: {tint}')
     
     niter = math.floor(tacc / texp)           # Steps
     jstep = math.floor(wind * texp / pixel + 0.5) # Integer pixel shift
@@ -143,30 +146,30 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     windef = jstep * pixel / texp
     
     
-    print(f'Screen shift per exposure: {jstep} pixels')
-    print(f'Effective wind speed: {windef} m/s')
-    print(f'Total iterations to simulate: {niter}\n')
+    if verb: print(f'Screen shift per exposure: {jstep} pixels')
+    if verb: print(f'Effective wind speed: {windef} m/s')
+    if verb: print(f'Total iterations to simulate: {niter}\n')
     
     # Define grid size and oversampling
     nap = math.floor(ngrid / 2)
-    print(f'Aperture grid, pixels: {nap}')
+    if verb: print(f'Aperture grid, pixels: {nap}')
     
     d1 = wavelen / pixscale * 206265 # Pupil match pixels
-    print(f'd1: {d1}')
+    if verb: print(f'd1: {d1}')
     d2 = wavelen / pixel * 206265    # Pupil match pixels
-    print(f'd2: {d2}')
+    if verb: print(f'd2: {d2}')
     
     if oversamp: 
         npixperpix = 2 ** (math.floor(math.log2(1.5 * d / d1)) + 1) # Oversample
     else:
         npixperpix = 1
-    print(f'Pixel per pixel: {npixperpix}')
+    if verb: print(f'Pixel per pixel: {npixperpix}')
     
     nscr = 2 ** (math.floor(math.log2(1.5 * d / pixel)) + 1)            # Screen size in pixels
-    print(f'Screen size in pixels: {nscr}')
+    if verb: print(f'Screen size in pixels: {nscr}')
     
     ksamp = max(int(nap // nscr), 1)
-    print(f'Over-sampling factor: {ksamp}')
+    if verb: print(f'Over-sampling factor: {ksamp}')
     
     
     # Pixel and ring sizes
@@ -184,14 +187,14 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     rradiuspix = 0.85 * d * (1 + eps) / (4 * pdist) * 206265 / asperpix
     HR = rradiuspix * pdist
     
-    print(f'Re-sampled pixel size [m]: {pixel / ksamp:.6e}')
-    print(f'CCD size & pixel [arcsec]: {nccd}, {asperpix}')
-    print(f'Nominal ring radius [pix, arcsec]: {rradiuspix:.3f}, {rradiuspix * asperpix:.3f}')
-    print(f'HR [unit?]: {HR}')
+    if verb: print(f'Re-sampled pixel size [m]: {pixel / ksamp:.6e}')
+    if verb: print(f'CCD size & pixel [arcsec]: {nccd}, {asperpix}')
+    if verb: print(f'Nominal ring radius [pix, arcsec]: {rradiuspix:.3f}, {rradiuspix * asperpix:.3f}')
+    if verb: print(f'HR [unit?]: {HR}')
     
     # Warn only if the fine grid is coarser than the detector (under-sampled sim).
     if ccdbin < 1.0:
-        print(f'Warning: fine grid {finepix:.4f} arcsec/pix is coarser than the '
+        if verb: print(f'Warning: fine grid {finepix:.4f} arcsec/pix is coarser than the '
               f'detector {asperpix:.4f} arcsec/pix; raise oversampling for a finer sim.')
     
     # Circular image shifts
@@ -203,9 +206,9 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     phot_con = 1e11                # constant representing photons/sec/m^2 for a Mag 0 star at the top of the atmosphere
     starph = phot_con * texp * BW * 10**(-0.4 * starmag) * np.pi * (d/2)**2 * (1 - eps)**2 
         
-    print(f'Stellar photons per exposure and Star Magnitude: {round(starph,2),starmag}')
-    print(f'Readout noise (e-): {ron}')
-    print(f'Jitter = {jitter}')
+    if verb: print(f'Stellar photons per exposure and Star Magnitude: {round(starph,2),starmag}')
+    if verb: print(f'Readout noise (e-): {ron}')
+    if verb: print(f'Jitter = {jitter}')
     
     # Prepare the aperture mask
     apert = np.zeros((nap, nap))
@@ -236,7 +239,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     tmp = a11 * np.sqrt(5) * (6.0 * (rho**4) - 6 * (rho**2))
     tmp += a4 * 2.0 * np.sqrt(3) * ((rho**2) - 0.5)
     
-    print(f'Nominal a4, a11 [rad]: {a4:}, {a11}')
+    if verb: print(f'Nominal a4, a11 [rad]: {a4:}, {a11}')
     
     if display:
         plt.figure(figsize=(6, 6))
@@ -317,9 +320,9 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     rradpix2 = np.sum(imh0*r) / np.sum(imh0) # true ring radius in fine pixels
     rad = rradpix2 / ccdbin  # radius in CCD pixels
     
-    print(f'True ring radius [pix]: {rring}')
-    print(f'True ring radius [arcsec]: {(rring * asperpix)}')
-    print(f'rring / ksamp {rring / ksamp}')
+    if verb: print(f'True ring radius [pix]: {rring}')
+    if verb: print(f'True ring radius [arcsec]: {(rring * asperpix)}')
+    if verb: print(f'rring / ksamp {rring / ksamp}')
     
     # Cube for loop
     cube = np.zeros((niter, nccd, nccd), dtype=np.float64)
@@ -328,7 +331,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     # Progress display step
     ndispl = max(niter // 20, 1)
-    print(f'Computing {niter} iterations...')
+    if verb: print(f'Computing {niter} iterations...')
     
     # Gif creator
     writer = mpl.animation.PillowWriter(fps=5)
@@ -389,7 +392,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         cube[i, :, :] = impix
         
         if i % ndispl == 0:
-            print(f'Frame {i}/{niter}')
+            if verb: print(f'Frame {i}/{niter}')
             
             #clear_output(wait=True)  # Clears previous frame before rendering the new one
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
@@ -420,9 +423,9 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             #plt.show()
             plt.close(fig)  # close per-frame figure so they don't accumulate
 
-    print('Simulation done!')
+    if verb: print('Simulation done!')
     writer.finish()  # Compile output.gif
-    print('Gif saved')
+    if verb: print('Gif saved')
     
     imav = np.mean(cube, axis=0)
     
@@ -466,7 +469,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     filename = 'test.fits'
     hdu.writeto(filename, overwrite=True)
 
-    print(f'Successfully saved {niter} frames to {filename}')
+    if verb: print(f'Successfully saved {niter} frames to {filename}')
 
     return filename
 
