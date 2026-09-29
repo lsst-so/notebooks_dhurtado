@@ -24,7 +24,7 @@ from d_statmom import statmom
 from d_weights import computeweight
 import d_profrest
 
-def main():
+def main(argv=None):
 
     p = argparse.ArgumentParser()
 
@@ -72,7 +72,7 @@ def main():
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
                    help='Half size of the atmosphere grid to simulate, def=512')
 
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     d = args.d
     effl = args.effl
@@ -225,8 +225,8 @@ def main():
     results_to_csv(results)
     
     # Human-readable echo (kept for interactive use)
-    #for name, value in results.items():
-        #print(f'{name:<20} {value}')
+    for name, value in results.items():
+        print(f'{name:<20} {value}')
     
     print('\nSimulated cube is processed! Results written to testsimul_results.csv')
 
