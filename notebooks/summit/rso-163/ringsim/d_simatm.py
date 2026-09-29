@@ -186,6 +186,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     os.makedirs('images', exist_ok=True)   # store output images in ./images
     plt.savefig(os.path.join('images', 'atmsim.jpg'), dpi=300, format='jpg')
     #plt.show()
+    plt.close()  # release the figure so repeated runs don't accumulate figures
 
     return {'u1': u1, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,
             'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,

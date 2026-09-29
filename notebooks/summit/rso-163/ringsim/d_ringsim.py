@@ -226,7 +226,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'aperture_mask.jpg'), dpi=300, format='jpg')
         ##plt.show()
-        plt.clf
+        plt.close()
     
     # Add defocus and spherical, a4 negative for intrafocal
     a4 = (d ** 2 / (wavelen * pdist)) * (np.pi / (8 * np.sqrt(3)))
@@ -247,7 +247,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'zernike.jpg'), dpi=300, format='jpg')
         ##plt.show()
-        plt.clf
+        plt.close()
     
     # Undistorted image
     fresnel = np.exp(1j * tmp) * apert
@@ -267,7 +267,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'fresnel.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
         plt.figure(figsize=(6, 6))
         plt.imshow(np.abs(pupil_shifted), cmap='gray', origin='lower')
@@ -277,7 +277,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'shifted.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
         plt.figure(figsize=(6, 6))
         plt.imshow(np.abs(imh0_complex), cmap='gray', origin='lower')
@@ -287,7 +287,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'imh0_complex.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
         plt.figure(figsize=(6, 6))
         plt.imshow(np.abs(focus_centered), cmap='gray', origin='lower')
@@ -297,7 +297,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'focus_centered.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
         
         plt.figure(figsize=(6, 6))
         plt.imshow(np.abs(imh0), cmap='gray', origin='lower')
@@ -307,7 +307,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'imh0.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
     # Intensity normalization
     normconst = np.sum(imh0)
@@ -418,8 +418,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             writer.fig = fig  # Attach current figure instance to writer
             writer.grab_frame()  # Capture frame into GIF buffer
             #plt.show()
-            plt.clf
-    
+            plt.close(fig)  # close per-frame figure so they don't accumulate
+
     print('Simulation done!')
     writer.finish()  # Compile output.gif
     print('Gif saved')
@@ -435,7 +435,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         plt.ylabel('Y [pixels]')
         plt.savefig(os.path.join('images', 'imaverage.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
         print(f'nap {nap} \n nccd {nccd} \n npixperpix {npixperpix} \n radpix {radpix}')
     

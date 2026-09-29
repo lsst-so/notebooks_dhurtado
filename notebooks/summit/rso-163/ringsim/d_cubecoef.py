@@ -203,7 +203,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         
         plt.title('Initial Ring Alignment Control')
         plt.show()
-        plt.clf
+        plt.close()
     
     # Main Loop over the Cube
     coef = np.zeros((ncoef, nz), dtype=np.float64)
@@ -281,7 +281,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
             writer.fig = fig  # Attach current figure instance to writer
             writer.grab_frame()  # Capture frame into GIF buffer
             #plt.show()
-            plt.clf
+            plt.close(fig)  # close per-frame figure so they don't accumulate
     
     writer.finish()  # Compile output.gif
     print('Gif saved')
@@ -361,7 +361,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         plt.grid(True)
         plt.savefig(os.path.join('images', 'centroid_drift.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
     return impar, coef
 

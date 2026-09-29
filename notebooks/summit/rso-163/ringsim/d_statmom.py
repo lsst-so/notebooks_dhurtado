@@ -97,7 +97,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         plt.grid(True)
         plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
-        plt.clf
+        plt.close()
     
     # Assemble output dictionaries (same structure as cube2.py)
     moments = {

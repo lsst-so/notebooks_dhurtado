@@ -167,6 +167,7 @@ def main():
         plt.grid(True)
         plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
+        plt.close()
     
     
     profile = d_profrest.main(par, data, weight) #, zmat, display)
@@ -243,46 +244,46 @@ def collect_results(par, data, profile, moments, coef, inputs=None):
             results[key] = value
 
     # Input
-    results['D_m'] = tel['D']
-    results['eps'] = tel['eps']
-    results['effl_m'] = impar['effl']
-    results['pdist_m'] = tel['pdist']
-    results['asperpix'] = tel['pixel']          # detector plate scale [arcsec/pix]
-    results['ringradpix'] = tel['ringradpix']
-    results['ron_el'] = tel['ron']
-    results['mmax'] = prof_par['mmax']
-    results['nsect'] = prof_par['nsect']
-    results['wavelen_m'] = prof_par['wavelen'][0]
-    results['weightfile'] = prof_par['weightfile']
+    results['D_m']         = tel['D']
+    results['eps']         = tel['eps']
+    results['effl_m']      = impar['effl']
+    results['pdist_m']     = tel['pdist']
+    results['asperpix']    = tel['pixel']          # detector plate scale [arcsec/pix]
+    results['ringradpix']  = tel['ringradpix']
+    results['ron_el']      = tel['ron']
+    results['mmax']        = prof_par['mmax']
+    results['nsect']       = prof_par['nsect']
+    results['wavelen_m']   = prof_par['wavelen'][0]
+    results['weightfile']  = prof_par['weightfile']
 
     # Derived
-    results['backgr'] = impar['backgr']
-    results['flux_el'] = impar['flux']
-    results['fluxvar'] = impar['fluxvar']
-    results['rad_pix'] = impar['rad']
-    results['rwidth_pix'] = impar['rwidth']
-    results['xc'] = impar['xc']
-    results['yc'] = impar['yc']
-    results['xcvar'] = impar['xcvar']
-    results['ycvar'] = impar['ycvar']
-    results['coma'] = impar['coma']
-    results['angle'] = impar['angle']
-    results['contrast'] = impar['contrast']
-    results['pixel_m'] = impar['pixel'] # pixel grid size
+    results['backgr']      = impar['backgr']
+    results['flux_el']     = impar['flux']
+    results['fluxvar']     = impar['fluxvar']
+    results['rad_pix']     = impar['rad']
+    results['rwidth_pix']  = impar['rwidth']
+    results['xc']          = impar['xc']
+    results['yc']          = impar['yc']
+    results['xcvar']       = impar['xcvar']
+    results['ycvar']       = impar['ycvar']
+    results['coma']        = impar['coma']
+    results['angle']       = impar['angle']
+    results['contrast']    = impar['contrast']
+    results['pixel_m']     = impar['pixel'] # pixel grid size
     
     for i, v in enumerate(noisepar):
         results[f'noisepar_{i}'] = float(v)
 
     # Profile restored
-    results['erms'] = profile['erms']
-    results['chi2'] = profile['erms'] * 100
-    results['see_arcsec'] = profile['see']
+    results['erms']        = profile['erms']
+    results['chi2']        = profile['erms'] * 100
+    results['see_arcsec']  = profile['see']
     results['fsee_arcsec'] = profile['fsee']
     results['see2_arcsec'] = profile['see2']
-    results['wind'] = profile['wind']
-    results['totvar'] = profile['totvar']
-    results['tau0'] = profile['tau0']
-    results['theta0'] = profile['theta0']
+    results['wind']        = profile['wind']
+    results['totvar']      = profile['totvar']
+    results['tau0']        = profile['tau0']
+    results['theta0']      = profile['theta0']
 
     # Per-layer altitude grid and turbulence profile
     z0 = np.asarray(profile['z0'], dtype=float)
@@ -293,7 +294,7 @@ def collect_results(par, data, profile, moments, coef, inputs=None):
         results[f'J_1e13_{i}'] = float(v)
 
     # Moments
-    results['rvar'] = moments['rvar']
+    results['rvar']   = moments['rvar']
     results['rnoise'] = moments['rnoise']
     mcoef = np.asarray(moments['mcoef'], dtype=float)
     for i, v in enumerate(mcoef):
@@ -302,11 +303,11 @@ def collect_results(par, data, profile, moments, coef, inputs=None):
     # Angular power spectrum plot
     # x-axis is the mode index m (0..mmax); the curves are the per-m power
     # and covariance, and anoise is the constant noise floor.
-    flux = impar['flux']
-    ron = tel['ron']
+    flux   = impar['flux']
+    ron    = tel['ron']
     anoise = noisepar[0] / flux + noisepar[1] * (ron / flux) ** 2
-    power = np.asarray(moments['var'], dtype=float)
-    covar = np.asarray(moments['cov'], dtype=float)
+    power  = np.asarray(moments['var'], dtype=float)
+    covar  = np.asarray(moments['cov'], dtype=float)
     results['anoise'] = float(anoise)
     for i, v in enumerate(power):
         results[f'power_m_{i}'] = float(v)
@@ -315,7 +316,7 @@ def collect_results(par, data, profile, moments, coef, inputs=None):
 
     #  Coefficient array
     coef = np.asarray(coef)
-    results['coef_ncoef'] = int(coef.shape[0])
+    results['coef_ncoef']   = int(coef.shape[0])
     results['coef_nframes'] = int(coef.shape[1]) if coef.ndim > 1 else 1
 
     return results

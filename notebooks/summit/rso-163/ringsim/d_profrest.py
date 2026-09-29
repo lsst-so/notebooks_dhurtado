@@ -182,7 +182,8 @@ def restore(par, data, weight, zmat, display=True):
         plt.grid(True)
         plt.savefig(os.path.join('images', 'power_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
-    
+        plt.close()  # release the figure so repeated runs don't accumulate figures
+
     prof1 = prof * cosz  # zenith-corrected integrals
     jtot = np.sum(prof1)  # turbulence integral
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
