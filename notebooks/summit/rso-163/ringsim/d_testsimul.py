@@ -11,6 +11,8 @@ Translated: D. Hurtado
 
 '''
 import argparse
+import csv
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -21,7 +23,6 @@ from d_cubecoef import cubecoef
 from d_statmom import statmom
 from d_weights import computeweight
 import d_profrest
-
 
 def main():
 
@@ -200,8 +201,136 @@ def main():
     print(f'Sector seeing: {see2}')
     print(f'Input seeing and J: {seeing}, {tint * 1e13}')
     print(f'Altitudes: {zlow} -> {zhigh}')
-    print('Simulated cube is processed!')
     
+        
+    # Simulation "truth" inputs (not carried in the pipeline dicts) so the
+    # restored values can be compared against what was fed in.
+    inputs = OrderedDict([
+        ('seeing_in_arcsec', seeing),
+        ('zlow_in_m', zlow),
+        ('zhigh_in_m', zhigh),
+        ('highfrac_in', highfrac),
+        ('starmag_in', starmag),
+        ('gain_in', gain),
+        ('seed0_in', seed0 if seed0 is not None else -1),
+        ('ngrid_in', ngrid),
+        ('r0_in_m', r0),
+        ('tint_in', tint),
+        ('pixscale_in', pixscale),
+    ])
+
+    # Build the dict and write it out
+    results = collect_results(par, data, profile, moments, coef, inputs=inputs)
+    results_to_csv(results)
+    
+    # Human-readable echo (kept for interactive use)
+    #for name, value in results.items():
+        #print(f'{name:<20} {value}')
+    
+    print('\nSimulated cube is processed! Results written to testsimul_results.csv')
+
+
+def collect_results(par, data, profile, moments, coef, inputs=None):
+    
+    tel = par['telescope']
+    prof_par = par['profrest']
+    impar = data['image']['impar']
+    noisepar = data['image']['noisepar']
+
+    results = OrderedDict()
+    if inputs is not None:
+        for key, value in inputs.items():
+            results[key] = value
+
+    # Input
+    results['D_m'] = tel['D']
+    results['eps'] = tel['eps']
+    results['effl_m'] = impar['effl']
+    results['pdist_m'] = tel['pdist']
+    results['asperpix'] = tel['pixel']          # detector plate scale [arcsec/pix]
+    results['ringradpix'] = tel['ringradpix']
+    results['ron_el'] = tel['ron']
+    results['mmax'] = prof_par['mmax']
+    results['nsect'] = prof_par['nsect']
+    results['wavelen_m'] = prof_par['wavelen'][0]
+    results['weightfile'] = prof_par['weightfile']
+
+    # Derived
+    results['backgr'] = impar['backgr']
+    results['flux_el'] = impar['flux']
+    results['fluxvar'] = impar['fluxvar']
+    results['rad_pix'] = impar['rad']
+    results['rwidth_pix'] = impar['rwidth']
+    results['xc'] = impar['xc']
+    results['yc'] = impar['yc']
+    results['xcvar'] = impar['xcvar']
+    results['ycvar'] = impar['ycvar']
+    results['coma'] = impar['coma']
+    results['angle'] = impar['angle']
+    results['contrast'] = impar['contrast']
+    results['pixel_m'] = impar['pixel'] # pixel grid size
+    
+    for i, v in enumerate(noisepar):
+        results[f'noisepar_{i}'] = float(v)
+
+    # Profile restored
+    results['erms'] = profile['erms']
+    results['chi2'] = profile['erms'] * 100
+    results['see_arcsec'] = profile['see']
+    results['fsee_arcsec'] = profile['fsee']
+    results['see2_arcsec'] = profile['see2']
+    results['wind'] = profile['wind']
+    results['totvar'] = profile['totvar']
+    results['tau0'] = profile['tau0']
+    results['theta0'] = profile['theta0']
+
+    # Per-layer altitude grid and turbulence profile
+    z0 = np.asarray(profile['z0'], dtype=float)
+    prof = np.asarray(profile['prof'], dtype=float)   #  scaled by 1e13
+    for i, v in enumerate(z0):
+        results[f'Z_km_{i}'] = float(v) * 1e-3
+    for i, v in enumerate(prof):
+        results[f'J_1e13_{i}'] = float(v)
+
+    # Moments
+    results['rvar'] = moments['rvar']
+    results['rnoise'] = moments['rnoise']
+    mcoef = np.asarray(moments['mcoef'], dtype=float)
+    for i, v in enumerate(mcoef):
+        results[f'mcoef_{i}'] = float(v)
+
+    # Angular power spectrum plot
+    # x-axis is the mode index m (0..mmax); the curves are the per-m power
+    # and covariance, and anoise is the constant noise floor.
+    flux = impar['flux']
+    ron = tel['ron']
+    anoise = noisepar[0] / flux + noisepar[1] * (ron / flux) ** 2
+    power = np.asarray(moments['var'], dtype=float)
+    covar = np.asarray(moments['cov'], dtype=float)
+    results['anoise'] = float(anoise)
+    for i, v in enumerate(power):
+        results[f'power_m_{i}'] = float(v)
+    for i, v in enumerate(covar):
+        results[f'cov_m_{i}'] = float(v)
+
+    #  Coefficient array
+    coef = np.asarray(coef)
+    results['coef_ncoef'] = int(coef.shape[0])
+    results['coef_nframes'] = int(coef.shape[1]) if coef.ndim > 1 else 1
+
+    return results
+
+
+def results_to_csv(results, filename='testsimul_results.csv'):
+
+    write_header = not os.path.exists(filename)
+    with open(filename, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=list(results.keys()))
+        if write_header:
+            writer.writeheader()
+        writer.writerow(results)
+    return results
+
 
 if __name__ == '__main__':
     main()
