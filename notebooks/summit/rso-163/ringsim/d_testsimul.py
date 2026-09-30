@@ -13,6 +13,7 @@ Translated: D. Hurtado
 import argparse
 import csv
 from collections import OrderedDict
+from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -100,7 +101,7 @@ def main(argv=None):
     ngrid = args.ngrid
     display = bool(args.display)
     verb = bool(args.verb)
-
+    
     # Derived from inputs
     pixscale = pixsize / effl * 206265
     r0 = 0.98 * wavelen / seeing * 206265.0
@@ -208,10 +209,12 @@ def main(argv=None):
     if verb: print(f'Input seeing and J: {seeing}, {tint * 1e13}')
     if verb: print(f'Altitudes: {zlow} -> {zhigh}')
     
-        
+    time = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    
     # Simulation "truth" inputs (not carried in the pipeline dicts) so the
     # restored values can be compared against what was fed in.
     inputs = OrderedDict([
+        ('iso_time', time),
         ('input_seeing_arcsec', seeing),
         ('input_zlow_m', zlow),
         ('input_zhigh_m', zhigh),
