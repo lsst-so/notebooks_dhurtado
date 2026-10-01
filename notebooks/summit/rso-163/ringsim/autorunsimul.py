@@ -33,7 +33,8 @@ def main():
         times.append(secs)
         i += 1
     
-    print(f'Autorun finished in {np.sum(times)/60}\"! \n Mean run {np.mean(times)}"')
+    print(f'Autorun finished in {np.sum(times)/60}\'!')
+    print(f'Mean run {np.mean(times)}"')
 
 
 if __name__ == '__main__':
