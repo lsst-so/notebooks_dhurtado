@@ -16,6 +16,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation # noqa: F401
 import numpy as np
+import os
 
 from astropy.io import fits
 
@@ -42,7 +43,9 @@ def main():
                    help='Divide frames by a flat field, boolean, def=True')
     p.add_argument('--display', dest='display', type=bool, default=True,
                    help='Decides if images are displayed, boolean, def=True')
-    
+    p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                   help='Print text into CLI, def=True')
+
     args     = p.parse_args()
     cubefile = args.cubefile
     mmax     = args.mmax
@@ -53,13 +56,14 @@ def main():
     leak     = args.leak
     flat     = args.flat
     display  = args.display
+    verb     = args.verb
 
     return cubecoef(cubefile, mmax, nsect, drad, interpol,
-                    nstart, leak, flat, display)
+                    nstart, leak, flat, display, verb)
 
 
 def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
-             interpol=1, nstart=50, leak=1, flat=True, display=True):
+             interpol=1, nstart=50, leak=1, flat=True, display=True, verb=True):
 
     with fits.open(cubefile) as hdul:
         cube = hdul[0].data
@@ -86,7 +90,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     flat = True
     
     nz, nx, ny = cube.shape
-    print(f'Sizes {nx, ny, nz}')
+    if verb: print(f'Sizes {nx, ny, nz}')
     if nx != ny:
         raise ValueError(f'Non square frames! ({nx} =/= {ny})')
     
@@ -150,7 +154,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     radvar = np.sum(tmp_thresh * (r - radpix)**2) / np.sum(tmp_thresh)
     rwidth = np.sqrt(radvar) * 2.35
     
-    print(f'Ring rad, width, minwidth [pix]: {radpix}, {rwidth}, {rwidthmin}')
+    if verb: print(f'Ring rad, width, minwidth [pix]: {radpix}, {rwidth}, {rwidthmin}')
     
     if radpix > nx / 2: # Check if cube is empty
         #
@@ -165,7 +169,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     ringmask = (r >= (radpix - drhopix)) & (r <= (radpix + drhopix))
     nring = np.count_nonzero(ringmask)
     
-    print(f'nring {nring}')
+    if verb: print(f'nring {nring}')
     
     # Full-frame projection matrix: the piston-subtracted cos/sin masks are nonzero
     # outside the ring, so projecting against the full (flattened) frame keeps the
@@ -193,7 +197,6 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     # Optional control plot before main loop
     if display:
         imax = np.max(imgcent[:, nx // 2])
-        plt.figure('Sector Definition Control')
         plt.plot(x[0, :], np.maximum(imgcent[:, nx // 2], 0), 'b-', label='Profile')
         plt.plot(-x[0, :], imgcent[:, nx // 2], 'r--', label='Mirrored')
         
@@ -203,7 +206,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         
         plt.title('Initial Ring Alignment Control')
         plt.show()
-        plt.clf
+        plt.close()
     
     # Main Loop over the Cube
     coef = np.zeros((ncoef, nz), dtype=np.float64)
@@ -212,7 +215,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     rad = np.zeros(nz, dtype=np.float64)
     
     x0, y0, rad0 = xc, yc, radpix
-    print('Processing the cube')
+    if verb: print('Processing the cube')
     imav_sum = np.zeros((ny, nx), dtype=np.float64)
     
     # Gif creator
@@ -280,11 +283,11 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
             # Gif input
             writer.fig = fig  # Attach current figure instance to writer
             writer.grab_frame()  # Capture frame into GIF buffer
-            plt.show()
-            plt.clf
+            #plt.show()
+            plt.close(fig)  # close per-frame figure so they don't accumulate
     
     writer.finish()  # Compile output.gif
-    print('Gif saved')
+    if verb: print('Gif saved')
         
     imav_final = imav_sum / nz
     
@@ -337,7 +340,6 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         'contrast': float(np.mean(contrast)),
         'noisepar': noisepar,
         'nsect':    nsect,
-        'ngrid':    ngrid,
         'mmax':     mmax,
         'asperpix': asperpix,
         'd':        d,
@@ -349,10 +351,9 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         'pixel':    pixel
             }
     
-    print(f'Cube processed! Parameters saved')
+    if verb: print(f'Cube processed! Parameters saved')
     
     if display:
-        plt.figure('Centroid Track (pix)')
         plt.plot(xcent, ycent, '+', label='Centroid (X, Y) [pix]',)
         #plt.plot(ycent * pixel, linestyle='--', label='Y-drift vs Frame')
         plt.axis('equal')
@@ -361,8 +362,9 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         plt.title('Centroid Position & Drift [pix]')
         #plt.legend()
         plt.grid(True)
-        plt.show()
-        plt.clf
+        plt.savefig(os.path.join('images', 'centroid_drift.jpg'), dpi=300, format='jpg')
+        #plt.show()
+        plt.close()
     
     return impar, coef
 

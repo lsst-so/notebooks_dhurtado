@@ -11,18 +11,21 @@ Translated: D. Hurtado
 
 '''
 import argparse
+import csv
+from collections import OrderedDict
+from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from d_simatm import simatm
 from d_ringsim import ringsim
 from d_cubecoef import cubecoef
 from d_statmom import statmom
 from d_weights import computeweight
+import d_profrest
 
-
-
-def main():
+def main(argv=None):
 
     p = argparse.ArgumentParser()
 
@@ -55,6 +58,8 @@ def main():
     # Atmosphere / observation
     p.add_argument('--seeing', dest='seeing', type=float, default=1,
                    help='Seeing in arcsec at 0.5 micron, def=1')
+    p.add_argument('--wind', dest='wind', type=float, default=10,
+                   help='Wind speed in m/s, def=10')
     p.add_argument('--zlow', dest='zlow', type=float, default=500,
                    help='Low layer altitude, meters, def=500')
     p.add_argument('--zhigh', dest='zhigh', type=float, default=10500,
@@ -65,12 +70,16 @@ def main():
                    help='Star magnitude, def=2')
     p.add_argument('--gain', dest='gain', type=float, default=0,
                    help='Camera gain setting, def=0')
-    p.add_argument('--seed0', dest='seed0', type=int, default=None,
-                   help='Fixed RNG seed for reproducible runs, def=None (random)')
+    p.add_argument('--seed0', dest='seed0', type=int, default=52403,
+                   help='Fixed RNG seed for reproducible runs, def=52403')
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
                    help='Half size of the atmosphere grid to simulate, def=512')
+    p.add_argument('--display', dest='display', type=bool, default=True,
+                   help='Save the displayed images in auto-folder, def=True')
+    p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                   help='Print text into CLI, def=True')
 
-    args = p.parse_args()
+    args = p.parse_args(argv)
 
     d = args.d
     effl = args.effl
@@ -84,7 +93,8 @@ def main():
     nsect = args.nsect
     interpol = args.interpol
     ron = args.ron
-    seeing = args.seeing
+    seeing = round(args.seeing, 2)
+    wind = args.wind
     zlow = args.zlow
     zhigh = args.zhigh
     highfrac = args.highfrac
@@ -92,25 +102,26 @@ def main():
     gain = args.gain
     seed0 = args.seed0
     ngrid = args.ngrid
-
+    display = bool(args.display)
+    verb = bool(args.verb)
+    
     # Derived from inputs
     pixscale = pixsize / effl * 206265
     r0 = 0.98 * wavelen / seeing * 206265.0
-
-    display = True
+    tint = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2)
 
     simatm(pixel, r0, wavelen=wavelen, ngrid=ngrid, zlow=zlow, zhigh=zhigh,
-           fhigh=highfrac, seed0=seed0)
+           fhigh=highfrac, seed0=seed0, display=display, verb=verb)
 
     cubefile = ringsim(d, effl, eps, pdist, pixsize, ron=ron, gain=gain,
-                       starmag=starmag, display=display)
+                       starmag=starmag, wind=wind, display=display, verb=verb)
 
     impar, coef = cubecoef(cubefile, mmax=mmax, nsect=nsect, drad=drad,
-                           interpol=interpol, display=display)
+                           interpol=interpol, display=display, verb=verb)
 
-    par, data = statmom(impar, coef, mmax=mmax, nsect=nsect, display=display)
+    par, data = statmom(impar, coef, mmax=mmax, nsect=nsect, display=display, verb=verb)
 
-    weight = computeweight(par)
+    weight = computeweight(par, verb=verb)
 
     moments = data['moments']
     noisepar = impar['noisepar']
@@ -133,7 +144,7 @@ def main():
 
     # Standard altitude layers (0, 0.25 km, 0.5 km, 1 km ... 16 km)
     nz = 8
-    z0 = np.concatenate(([0], 1000 * (np.power(2, (np.arange(nz - 1) - 2)))))  # 2: IDL '2.' float base allows negative exponents
+    z0 = np.concatenate(([0], 1000 * (np.power(2.0, (np.arange(nz - 1) - 2)))))  # 2.0: float base allows negative exponents
 
     # Noise-subtract the power and get the scintillation index (testsimul.pro lines 66-67)
     powspec = np.maximum(powspec - anoise, 0)
@@ -151,7 +162,7 @@ def main():
     # Plot angular power spectrum, covariance and noise floor
     if display:
         arg = np.arange(len(powspec))
-        plt.figure('Angular power / covariance / noise', figsize=(7, 5))
+        plt.figure(figsize=(7, 5))
         plt.semilogy(arg, np.maximum(np.array(moments['var'], float), 1e-12), 'k-o', label='power')
         plt.semilogy(arg, np.maximum(covspec, 1e-12), 'r--', label='covariance')
         plt.axhline(max(anoise, 1e-12), ls=':', color='b', label='noise')
@@ -163,7 +174,174 @@ def main():
         plt.title('Angular power spectrum')
         plt.legend()
         plt.grid(True)
-        plt.show()
+        plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
+        #plt.show()
+        plt.close()
+    
+    
+    profile = d_profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
+    
+    prof = np.array(profile['prof'], float) / 1e13
+    
+    # Total and free-atmosphere turbulence integrals
+    jtot = np.sum(prof[:nz])
+    see = (jtot / 6.826e-13) ** 0.6
+    jfree = np.sum(prof[2:nz])
+    fsee = (jfree / 6.8e-13) ** 0.6
+    if verb: print(f'See, fsee:{see}{fsee}')
+    if verb: print(f'Scint: {totvar}')
+    
+    # Formatted array outputs matching IDL's (A12, 10F7.2) specifier
+    z_str = ''.join([f'{v:2.2f}' for v in (z0 * 1e-3)[:10]])
+    j_str = ''.join([f'{v:2.2f}' for v in (prof * 1e13)[:10]])
+    if verb: print(f'{'Z [km]:':<12}{z_str}')
+    if verb: print(f'{'J [1e-13]:':<12}{j_str}')
+    if verb: print(f'Estimated wind: {float(profile['wind'])} m/s')
+    
+    # Alternative seeing from sector-radius variance
+    wtsect = np.sum(wt[0, :] * prof) / np.sum(prof)   # profile-weighted sector weight
+    lamd = (wavelen / d) * 206265                     # lambda/D in arcsec
+    radvar = rrms ** 2 - rnoise1                      # noise-corrected radius variance, pix^2
+    rvarnorm = radvar * (pixscale / lamd) ** 2        # variance in (lambda/D)^2 units
+    jtot2 = rvarnorm / wtsect / 4                     # zenith turbulence integral
+    see2 = (jtot2 / 6.826e-13) ** 0.6                 # seeing in arcsec
+    see2 = see2 / (1 - 0.40 * totvar)                 # scintillation saturation correction
+    
+    if verb: print(f'Sector seeing: {see2}')
+    if verb: print(f'Input seeing and J: {seeing}, {tint * 1e13}')
+    if verb: print(f'Altitudes: {zlow} -> {zhigh}')
+    
+    time = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    
+    # Simulation "truth" inputs (not carried in the pipeline dicts) so the
+    # restored values can be compared against what was fed in.
+    inputs = OrderedDict([
+        ('iso_time', time),
+        ('input_seeing_arcsec', seeing),
+        ('input_wind_ms', wind),
+        ('input_zlow_m', zlow),
+        ('input_zhigh_m', zhigh),
+        ('input_highfrac', highfrac),
+        ('input_starmag', starmag),
+        ('input_gain', gain),
+        ('input_seed0', seed0 if seed0 is not None else -1),
+        ('input_ngrid', ngrid),
+        ('input_r0_m', r0),
+        ('input_tint', tint),
+        ('input_pixscale', pixscale),
+    ])
+
+    # Build the dict and write it out
+    results = collect_results(par, data, profile, moments, coef, inputs=inputs)
+    results_to_csv(results)
+    
+    # Human-readable echo (kept for interactive use)
+    #for name, value in results.items():
+        #print(f'{name:<20} {value}')
+    
+    if verb: print('\nSimulated cube is processed! Results written to testsimul_results.csv')
+
+
+def collect_results(par, data, profile, moments, coef, inputs=None):
+    
+    tel = par['telescope']
+    prof_par = par['profrest']
+    impar = data['image']['impar']
+    noisepar = data['image']['noisepar']
+
+    results = OrderedDict()
+    if inputs is not None:
+        for key, value in inputs.items():
+            results[key] = value
+
+    # Input
+    results['D_m']         = tel['D']
+    results['eps']         = tel['eps']
+    results['effl_m']      = impar['effl']
+    results['pdist_m']     = tel['pdist']
+    results['asperpix']    = tel['pixel']          # detector plate scale [arcsec/pix]
+    results['ringradpix']  = tel['ringradpix']
+    results['ron_el']      = tel['ron']
+    results['mmax']        = prof_par['mmax']
+    results['nsect']       = prof_par['nsect']
+    results['wavelen_m']   = prof_par['wavelen'][0]
+    results['weightfile']  = prof_par['weightfile']
+
+    # Derived
+    results['backgr']      = impar['backgr']
+    results['flux_el']     = impar['flux']
+    results['fluxvar']     = impar['fluxvar']
+    results['rad_pix']     = impar['rad']
+    results['rwidth_pix']  = impar['rwidth']
+    results['xc']          = impar['xc']
+    results['yc']          = impar['yc']
+    results['xcvar']       = impar['xcvar']
+    results['ycvar']       = impar['ycvar']
+    results['coma']        = impar['coma']
+    results['angle']       = impar['angle']
+    results['contrast']    = impar['contrast']
+    results['pixel_m']     = impar['pixel'] # pixel grid size
+    
+    for i, v in enumerate(noisepar):
+        results[f'noisepar_{i}'] = float(v)
+
+    # Profile restored
+    results['erms']        = profile['erms']
+    results['chi2']        = profile['erms'] * 100
+    results['see_arcsec']  = profile['see']
+    results['fsee_arcsec'] = profile['fsee']
+    results['see2_arcsec'] = profile['see2']
+    results['wind']        = profile['wind']
+    results['totvar']      = profile['totvar']
+    results['tau0']        = profile['tau0']
+    results['theta0']      = profile['theta0']
+
+    # Per-layer altitude grid and turbulence profile
+    z0 = np.asarray(profile['z0'], dtype=float)
+    prof = np.asarray(profile['prof'], dtype=float)   #  scaled by 1e13
+    for i, v in enumerate(z0):
+        results[f'Z_km_{i}'] = float(v) * 1e-3
+    for i, v in enumerate(prof):
+        results[f'J_1e13_{i}'] = float(v)
+
+    # Moments
+    results['rvar']   = moments['rvar']
+    results['rnoise'] = moments['rnoise']
+    mcoef = np.asarray(moments['mcoef'], dtype=float)
+    for i, v in enumerate(mcoef):
+        results[f'mcoef_{i}'] = float(v)
+
+    # Angular power spectrum plot
+    # x-axis is the mode index m (0..mmax); the curves are the per-m power
+    # and covariance, and anoise is the constant noise floor.
+    flux   = impar['flux']
+    ron    = tel['ron']
+    anoise = noisepar[0] / flux + noisepar[1] * (ron / flux) ** 2
+    power  = np.asarray(moments['var'], dtype=float)
+    covar  = np.asarray(moments['cov'], dtype=float)
+    results['anoise'] = float(anoise)
+    for i, v in enumerate(power):
+        results[f'power_m_{i}'] = float(v)
+    for i, v in enumerate(covar):
+        results[f'cov_m_{i}'] = float(v)
+
+    #  Coefficient array
+    coef = np.asarray(coef)
+    results['coef_ncoef']   = int(coef.shape[0])
+    results['coef_nframes'] = int(coef.shape[1]) if coef.ndim > 1 else 1
+
+    return results
+
+
+def results_to_csv(results, filename='testsimul_results.csv'):
+
+    write_header = not os.path.exists(filename)
+    with open(filename, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=list(results.keys()))
+        if write_header:
+            writer.writeheader()
+        writer.writerow(results)
+    return results
 
 
 if __name__ == '__main__':

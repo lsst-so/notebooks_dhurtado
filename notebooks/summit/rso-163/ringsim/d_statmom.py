@@ -15,6 +15,7 @@ import argparse
 import logging  # debugging not supported
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 
 
@@ -32,26 +33,29 @@ def main():
                    help='Number of sectors for radius calculation, def=8')
     p.add_argument('--display', dest='display', type=bool, default=True,
                    help='Decides if images are displayed, boolean, def=True')
-    
+    p.add_argument('--verbose', dest='verb', type=bool, default=True,
+                   help='Print text into CLI, def=True')
+
     args = p.parse_args()
-    
+
     impar = args.impar
     coef = args.coef
     mmax = args.mmax
     nsect = args.nsect
     display = args.display
-    
-    return statmom(impar, coef, mmax, nsect, display)
+    verb = args.verb
+
+    return statmom(impar, coef, mmax, nsect, display, verb)
 
 
-def statmom(impar, coef, mmax=20, nsect=8, display=True):
+def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     
     # Calculation of statistical moments
     m = mmax
     
     ncoef, nz = coef.shape
     expected_ncoef = 2 * nsect + 2 * m + 2
-    print(f'ncoef {ncoef} expect: {expected_ncoef}')
+    if verb: print(f'ncoef {ncoef} expect: {expected_ncoef}')
     
     if ncoef != expected_ncoef:
         raise ValueError(f'Parameters do not match (ncoef={expected_ncoef}, got {ncoef})')
@@ -86,7 +90,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
     if display:
         arg = np.arange(m + 1)
         
-        plt.figure('Angular Power Spectrum', figsize=(7, 5))
+        plt.figure(figsize=(7, 5))
         plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
         plt.semilogy(arg, cov, 'r--', label='Covariance')
         plt.xlabel('m')
@@ -94,8 +98,9 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         plt.title('Angular Mode Spectrum')
         plt.legend()
         plt.grid(True)
-        plt.show()
-        plt.clf
+        plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
+        #plt.show()
+        plt.close()
     
     # Assemble output dictionaries (same structure as cube2.py)
     moments = {
@@ -133,7 +138,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True):
         'moments': moments,
             }
     
-    print('Par file created with',
+    if verb: print('Par file created with',
           'D:', par['telescope']['D'], 'eps:', par['telescope']['eps'],
           'pdist:', par['telescope']['pdist'],
           '\npixel (asperpix):', par['telescope']['pixel'],
