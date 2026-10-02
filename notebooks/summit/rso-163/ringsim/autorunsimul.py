@@ -27,9 +27,11 @@ def main():
     for see in see_range:
         start_time = time.time()
         seed0 = int(np.random.SeedSequence().generate_state(1, dtype=np.uint32)[0])
-        d_testsimul.main(['--seeing', f'{see}', '--seed0', f'{seed0}', '--verbose', '', '--display', ''])  # verb=False, display=False
+        wind = np.random.randint(1, 21)
+        
+        d_testsimul.main(['--seeing', f'{see}', '--wind', f'{wind}' ,'--seed0', f'{seed0}', '--verbose', '', '--display', ''])  # verb=False, display=False
         secs = round((time.time() - start_time),1)
-        print(f'Sim {i+1}/{len(see_range)} with Seeing: {round(see, 2)} in {secs} seconds')
+        print(f'Sim {i+1}/{len(see_range)} with Seeing: {round(see, 2)}" and Wind: {wind} m/s in {secs} seconds')
         times.append(secs)
         i += 1
     

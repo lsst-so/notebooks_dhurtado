@@ -58,6 +58,8 @@ def main(argv=None):
     # Atmosphere / observation
     p.add_argument('--seeing', dest='seeing', type=float, default=1,
                    help='Seeing in arcsec at 0.5 micron, def=1')
+    p.add_argument('--wind', dest='wind', type=float, default=10,
+                   help='Wind speed in m/s, def=10')
     p.add_argument('--zlow', dest='zlow', type=float, default=500,
                    help='Low layer altitude, meters, def=500')
     p.add_argument('--zhigh', dest='zhigh', type=float, default=10500,
@@ -92,6 +94,7 @@ def main(argv=None):
     interpol = args.interpol
     ron = args.ron
     seeing = round(args.seeing, 2)
+    wind = args.wind
     zlow = args.zlow
     zhigh = args.zhigh
     highfrac = args.highfrac
@@ -111,7 +114,7 @@ def main(argv=None):
            fhigh=highfrac, seed0=seed0, display=display, verb=verb)
 
     cubefile = ringsim(d, effl, eps, pdist, pixsize, ron=ron, gain=gain,
-                       starmag=starmag, display=display, verb=verb)
+                       starmag=starmag, wind=wind, display=display, verb=verb)
 
     impar, coef = cubecoef(cubefile, mmax=mmax, nsect=nsect, drad=drad,
                            interpol=interpol, display=display, verb=verb)
@@ -179,7 +182,6 @@ def main(argv=None):
     profile = d_profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
     
     prof = np.array(profile['prof'], float) / 1e13
-    wind = float(profile['wind'])
     
     # Total and free-atmosphere turbulence integrals
     jtot = np.sum(prof[:nz])
@@ -194,7 +196,7 @@ def main(argv=None):
     j_str = ''.join([f'{v:2.2f}' for v in (prof * 1e13)[:10]])
     if verb: print(f'{'Z [km]:':<12}{z_str}')
     if verb: print(f'{'J [1e-13]:':<12}{j_str}')
-    if verb: print(f'Wind: {wind}')
+    if verb: print(f'Estimated wind: {float(profile['wind'])} m/s')
     
     # Alternative seeing from sector-radius variance
     wtsect = np.sum(wt[0, :] * prof) / np.sum(prof)   # profile-weighted sector weight
@@ -216,6 +218,7 @@ def main(argv=None):
     inputs = OrderedDict([
         ('iso_time', time),
         ('input_seeing_arcsec', seeing),
+        ('input_wind_ms', wind),
         ('input_zlow_m', zlow),
         ('input_zhigh_m', zhigh),
         ('input_highfrac', highfrac),
