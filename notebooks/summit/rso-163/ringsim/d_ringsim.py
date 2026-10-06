@@ -334,10 +334,11 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     if verb: print(f'Computing {niter} iterations...')
     
     # Gif creator
-    writer = mpl.animation.PillowWriter(fps=5)
-    tmp_fig = plt.figure()
-    writer.setup(tmp_fig, 'ringsim.gif', dpi=100)
-    plt.close(tmp_fig)
+    if display: 
+        writer = mpl.animation.PillowWriter(fps=5)
+        tmp_fig = plt.figure()
+        writer.setup(tmp_fig, 'ringsim.gif', dpi=100)
+        plt.close(tmp_fig)
     
     # Main Loop
     for i in range(niter):
@@ -391,7 +392,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         # Save frame to 3D image cube
         cube[i, :, :] = impix
         
-        if i % ndispl == 0:
+        if i % ndispl == 0 and display:
             if verb: print(f'Frame {i}/{niter}')
             
             #clear_output(wait=True)  # Clears previous frame before rendering the new one
@@ -424,8 +425,9 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             plt.close(fig)  # close per-frame figure so they don't accumulate
 
     if verb: print('Simulation done!')
-    writer.finish()  # Compile output.gif
-    if verb: print('Gif saved')
+    if verb and display: 
+        writer.finish()
+        print('Gif saved')
     
     imav = np.mean(cube, axis=0)
     

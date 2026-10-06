@@ -219,10 +219,11 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     imav_sum = np.zeros((ny, nx), dtype=np.float64)
     
     # Gif creator
-    writer = mpl.animation.PillowWriter(fps=60)
-    tmp_fig = plt.figure()
-    writer.setup(tmp_fig, 'cube_centroid.gif', dpi=100)
-    plt.close(tmp_fig)
+    if display:
+        writer = mpl.animation.PillowWriter(fps=60)
+        tmp_fig = plt.figure()
+        writer.setup(tmp_fig, 'cube_centroid.gif', dpi=100)
+        plt.close(tmp_fig)
     
     for i in range(nz):
         
@@ -263,7 +264,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         tmp1 = (tmp_shifted / max_val
                 if max_val != 0
                 else np.zeros_like(tmp_shifted))
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 100 == 0 and display:
             # Overlay sector center coordinates and central pixel marker
             x_pts = np.clip(np.round(radii_i * xsect + nx / 2).astype(int), 0, nx - 1)
             y_pts = np.clip(np.round(radii_i * ysect + ny / 2).astype(int), 0, ny - 1)
@@ -274,11 +275,10 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
             
             #clear_output(wait=True)  # Clears previous frame before rendering the new one
             
-            fig = plt.figure('Live Frame Monitor', figsize=(5, 5))
-            plt.imshow(tmp_vis, interpolation=None, cmap='gray', origin='lower')
-            plt.title(f'Frame {i + 1} / {nz}')
-            plt.axis('off')
-            plt.pause(0.0001)
+            fig, ax = plt.subplots(num='Live Frame Monitor', figsize=(5, 5))
+            ax.imshow(tmp_vis, interpolation=None, cmap='gray', origin='lower')
+            ax.set_title(f'Frame {i + 1} / {nz}')
+            ax.axis('off')
             
             # Gif input
             writer.fig = fig  # Attach current figure instance to writer
@@ -286,8 +286,8 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
             #plt.show()
             plt.close(fig)  # close per-frame figure so they don't accumulate
     
-    writer.finish()  # Compile output.gif
-    if verb: print('Gif saved')
+    if display: writer.finish()  # Compile output.gif
+    if verb and display: print('Gif saved')
         
     imav_final = imav_sum / nz
     
