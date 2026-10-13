@@ -14,8 +14,7 @@ Concretely, the following IDL stages are now translated and running end-to-end i
     pdist, ringradpix, mmax, nsect, ron, weightfile, etc.) plus the observing
     parameters (seeing, zlow, zhigh, highfrac, starmag, gain) are defined directly
     in notebook cells. r0 and the turbulence integral J (tint) are computed from
-    seeing exactly as in the .pro. A proper file-based reader for sim1.par is still
-    a stub (cell "#par = with open data sim1.par ...").
+    seeing exactly as in the .pro.
 
   - simatm (simatm.py): DONE. Simulates the complex-amplitude screen for a two-layer
     atmosphere (low + high), builds Fresnel filters, generates Kolmogorov phase
@@ -100,17 +99,18 @@ New helper utility written alongside the translation:
 
 2. Ongoing work
 
-We've been working on finishing the translation into a Jupyter notebook, which is done,
-but it still needs troubleshooting and bug fixing, besides the adaptation to stand alone
-scripts. This process, also considers the stylization of the code, as to follow Rubin's
-and PEP 8 standards of legibility and hand-overs. 
+We've finished the translation of the simulation scripts into py, and can run them
+and autorun them with d_testsimul.py and autorunsimul.py. We are currently testing
+their fidelity and consistency with different scenarios. We also aim to compare
+the input parameters with the IDL's output.
+On the hardware side; we are trying to connect the camera to the DIMM Laptop, 
+in order to characterize it, as the RON and Gain settings depend directly of it 
+and may change how the simulation behaves.
 
 3. Future tasks
 
-Besides finishing the troubleshooting, we need to create (or add) an output method
-to capture and store the parameters and values calculated by the simulation.
-These should be stored in a plain text file for simplicity and straight-forward
-to compare to the same output in IDL. Also, we have to implement pytests and argparse.
-
-On the hardware, we have to assemble the optical path, test the mount and characterize
-the camera, all which should be documented both in Jira (ADD LINK) and in this repo.
+To test consistency and reliability of the simulation, we have to contrast it with
+real observations and parameters taken with Pachon and Tololo's respective RINGSS,
+without forgetting the caveats that this considers (no sky monitor is 1:1, etc).
+We also have to finish the full acquisition software, but this depends on the
+control and characterization of Camera, Focuser and Mount.
