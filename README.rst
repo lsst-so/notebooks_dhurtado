@@ -44,4 +44,4 @@ Workspace Overview
 
 4. In the current working directory (ringsim) exists a handoff file, as first step to documentation and heredability.
 
-5. Most of scripts are untested unless stated as tested.
+5. Most scripts are under development, and not expected to work in every environment.
