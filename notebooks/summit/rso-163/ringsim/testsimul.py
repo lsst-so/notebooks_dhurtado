@@ -18,12 +18,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-from d_simatm import simatm
-from d_ringsim import ringsim
-from d_cubecoef import cubecoef
-from d_statmom import statmom
-from d_weights import computeweight
-import d_profrest
+from simatm import simatm
+from ringsim import ringsim
+from cubecoef import cubecoef
+from statmom import statmom
+from weights import computeweight
+import profrest
 
 def main(argv=None):
 
@@ -179,7 +179,7 @@ def main(argv=None):
         plt.close()
     
     
-    profile = d_profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
+    profile = profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
     
     prof = np.array(profile['prof'], float) / 1e13
     

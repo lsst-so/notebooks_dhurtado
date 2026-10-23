@@ -5,7 +5,7 @@ Autoruns Andrei's simulation
 '''
 
 import argparse
-import d_testsimul
+import testsimul
 import numpy as np
 import time
 
@@ -29,7 +29,7 @@ def main():
         seed0 = int(np.random.SeedSequence().generate_state(1, dtype=np.uint32)[0])
         wind = np.random.randint(1, 21)
         
-        d_testsimul.main(['--seeing', f'{see}', '--wind', f'{wind}' ,'--seed0', f'{seed0}', '--verbose', '', '--display', ''])  # verb=False, display=False
+        testsimul.main(['--seeing', f'{see}', '--wind', f'{wind}' ,'--seed0', f'{seed0}', '--verbose', '', '--display', ''])  # verb=False, display=False
         secs = round((time.time() - start_time),1)
         print(f'Sim {i+1}/{len(see_range)} with Seeing: {round(see, 2)}" and Wind: {wind} m/s in {secs} seconds')
         times.append(secs)

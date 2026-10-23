@@ -34,7 +34,7 @@ def main(par=None, data=None, weight=None,
         p.add_argument('--datafile', dest='datafile', type=str, default=None,
                        help='JSON with image moments and noise parameters')
         p.add_argument('--weightfile', dest='weightfile', type=str, default=None,
-                       help='Weight JSON produced by d_weights.py')
+                       help='Weight JSON produced by weights.py')
         p.add_argument('--parfile', dest='parfile', type=str, default=None,
                        help='JSON with telescope/profrest parameters')
         p.add_argument('--zmatfile', dest='zmatfile', type=str,
