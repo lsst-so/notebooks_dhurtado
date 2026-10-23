@@ -20,7 +20,7 @@ from scipy import optimize
 
 
 def main(par=None, data=None, weight=None,
-         zmatfile=os.path.join('andrei', 'zmat.json'),
+         zmatfile=os.path.join('.', 'zmat.json'),
          zen=0, bv=0, gain=0, display=True, verb=True):
 
     # Import path: pass par/data/weight dicts (from statmom + computeweight)
@@ -38,8 +38,8 @@ def main(par=None, data=None, weight=None,
         p.add_argument('--parfile', dest='parfile', type=str, default=None,
                        help='JSON with telescope/profrest parameters')
         p.add_argument('--zmatfile', dest='zmatfile', type=str,
-                       default=os.path.join('andrei', 'zmat.json'),
-                       help='Saturation (Z-matrix) file, def=andrei/zmat.json')
+                       default=os.path.join('.', 'zmat.json'),
+                       help='Saturation (Z-matrix) file, def=./zmat.json')
         p.add_argument('--zen', dest='zen', type=float, default=0,
                        help='Zenith distance of the star, degrees, def=0')
         p.add_argument('--bv', dest='bv', type=float, default=0,
