@@ -138,6 +138,8 @@ dmypy.json
 *.tif
 *.fit
 *.fits
+*.csv
+*.bak
 notebooks/summit/rso-163/characterize/
 notebooks/summit/rso-163/ringsim/aberrtest/
 notebooks/summit/rso-163/ringsim/adam/
