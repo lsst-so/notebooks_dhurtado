@@ -119,7 +119,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     # Simulate turbulence in high layer
     if fhigh > 0:
         if verb: print('Simulating high layer')
-        u1 = sim_turbulence(ngrid,facthigh,r)
+        u1 = sim_turbulence(ngrid,facthigh,r,rng)
         
         # Propagate using Angular spectrum method (Zhigh -> Zlow)
         if (zhigh - zlow) > 0:
@@ -131,7 +131,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     
     # Simulate Low layer
     if verb: print('Simulating low layer')
-    u1 *= sim_turbulence(ngrid,factlow,r)
+    u1 *= sim_turbulence(ngrid,factlow,r,rng)
     
     # Propagate to ground (Zlow -> 0 km)
     if verb: print('Propagating to ground')
@@ -186,7 +186,7 @@ def create_grid(ngrid):
     return r
 
 
-def sim_turbulence(ngrid,fact,r):
+def sim_turbulence(ngrid,fact,r,rng):
     
     rng_complex = rng.normal(size=(ngrid*2, ngrid*2)) +1j * rng.normal(size=(ngrid*2, ngrid*2))
     tmp_fourier = fact * (r ** (-11 / 6)) * rng_complex
