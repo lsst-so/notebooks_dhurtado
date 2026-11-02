@@ -73,22 +73,22 @@ def main():
 
 def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
            fhigh=0.1, seed0=52403, display=True, verb=True):
-
+    
+    if zlow >= zhigh:
+        raise ValueError(f"Inconsistency: zlow ({zlow}) can't be greater or equal than zhigh ({zhigh})")
+    
     size = 2 * ngrid * pixel
     
     if verb: print('Simulating atmosphere')
-    
-    if verb: print(f'size: {size} \n ngrid: {ngrid}')
+    if verb: print(f'With size: {size} \n ngrid: {ngrid}')
     
     tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2) # Turbulence integral in meters^1/3
     see = (tint0 / 6.83e-13) ** (0.6)
     tinthigh = tint0 * fhigh            # High layer integral
     tintlow = tint0 * (1 - fhigh)       # Low layer integral
-    if zlow >= zhigh:
-        raise ValueError(f"Inconsistency: zlow ({zlow}) can't be greater or equal than zhigh ({zhigh})")
     
-    r0high = (0.423 * (0.5 * wavelen / np.pi)**(-2) * tinthigh)**(-3 / 5)  # Fried param for high layer
-    r0low = (0.423 * (0.5 * wavelen / np.pi)**(-2) * tintlow)**(-3 / 5)    # Fried param for low layer
+    r0high = fried_param(wavelen,tinthigh) # Fried param for high layer
+    r0low =  fried_param(wavelen,tintlow)  # Fried param for low layer
     
     if verb: print(f'Grid size (meters): {size} \n Fried parameters (meters) [low, high]: [{r0low, r0high}]')
     if verb: print(f'Integrals (meters^1/3) [low, high]: [{tintlow, tinthigh}] \n Altitudes (meters) {zlow, zhigh}')
@@ -99,12 +99,11 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
         facthigh = np.sqrt(0.023) * ((size/r0high) ** (5/6))
     else:
         facthigh = 0
+    
     factlow = np.sqrt(0.023) * ((size/r0low) ** (5/6))
     
     # Create grid and radial distance from center in pixels
-    y, x = np.ogrid[:ngrid * 2, :ngrid * 2]
-    r = np.sqrt((x - ngrid)**2 + (y - ngrid)**2, dtype=np.float64)
-    r[ngrid, ngrid] = 1e-3
+    r = create_grid(ngrid)
     
     # Create Fresnel filters
     farg = np.pi * wavelen / (size ** 2) * r ** 2
@@ -120,48 +119,23 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     # Simulate turbulence in high layer
     if fhigh > 0:
         if verb: print('Simulating high layer')
-        rng_complex = rng.normal(size=(ngrid*2, ngrid*2)) +1j * rng.normal(size=(ngrid*2, ngrid*2))
+        u1 = sim_turbulence(ngrid,facthigh,r)
         
-        tmp_fourier = facthigh * (r ** (-11 / 6)) * rng_complex
-        tmp_fourier[ngrid, ngrid] = 0 + 0j
-        tmp_shifted = np.fft.ifftshift(tmp_fourier)
-        tmp_spatial = np.fft.ifft2(tmp_shifted) * ((ngrid*2) ** 2)
-        tmp_phase = np.fft.fftshift(tmp_spatial).real
-    
-        # Simulate phase
-        u1 = np.exp(1j * tmp_phase)
-        
-        # Propagate using Angular spectrum method
+        # Propagate using Angular spectrum method (Zhigh -> Zlow)
         if (zhigh - zlow) > 0:
             if verb: print('Propagating to low layer')
             dz = zhigh - zlow
-            H_transfer = np.exp(-1j * farg * dz)
-            u1_fourier = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(u1)))
-            tmp_prop = H_transfer * u1_fourier
-            u1 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(tmp_prop)))
+            u1 = propagate(u1,farg,dz)
     else:
         u1 = np.ones((ngrid*2, ngrid*2), dtype=np.complex128)
     
     # Simulate Low layer
     if verb: print('Simulating low layer')
-    rng_complex_low = rng.normal(size=(ngrid*2, ngrid*2)) + 1j * rng.normal(size=(ngrid*2, ngrid*2))
+    u1 *= sim_turbulence(ngrid,factlow,r)
     
-    tmp_fourier_low = factlow * (r ** (-11 / 6)) * rng_complex_low
-    tmp_fourier_low[ngrid, ngrid] = 0 + 0j
-    
-    tmp_shifted_low = np.fft.ifftshift(tmp_fourier_low)
-    tmp_spatial_low = np.fft.ifft2(tmp_shifted_low) * ((ngrid*2) ** 2)
-    tmp_phase_low = np.fft.fftshift(tmp_spatial_low).real
-    
-    # Apply low layer phase distortion
-    u1 *= np.exp(1j * tmp_phase_low)
-    
-    # Propagate to ground
+    # Propagate to ground (Zlow -> 0 km)
     if verb: print('Propagating to ground')
-    H_ground = np.exp(-1j * farg * zlow)
-    u1_fourier_ground = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(u1)))
-    tmp_ground = H_ground * u1_fourier_ground
-    u1 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(tmp_ground)))
+    u1 = propagate(u1,farg,zlow)
     
     np.savez(
         'atm.npz',
@@ -198,6 +172,42 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
             'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,
             'zlow': zlow, 'seed0': seed0}
 
+# Used functions
+
+def fried_param(wavelen,turbulence_integral):
+    
+    r0 = (0.423 * (0.5 * wavelen / np.pi)**(-2) * turbulence_integral)**(-3 / 5)
+    return r0
+
+def create_grid(ngrid):
+    y, x = np.ogrid[:ngrid * 2, :ngrid * 2]
+    r = np.sqrt((x - ngrid)**2 + (y - ngrid)**2, dtype=np.float64)
+    r[ngrid, ngrid] = 1e-3
+    return r
+
+
+def sim_turbulence(ngrid,fact,r):
+    
+    rng_complex = rng.normal(size=(ngrid*2, ngrid*2)) +1j * rng.normal(size=(ngrid*2, ngrid*2))
+    tmp_fourier = fact * (r ** (-11 / 6)) * rng_complex
+    tmp_fourier[ngrid, ngrid] = 0 + 0j
+    tmp_shifted = np.fft.ifftshift(tmp_fourier)
+    tmp_spatial = np.fft.ifft2(tmp_shifted) * ((ngrid*2) ** 2)
+    tmp_phase = np.fft.fftshift(tmp_spatial).real
+
+    # Simulate phase
+    u1 = np.exp(1j * tmp_phase)
+    return u1
+
+    
+def propagate(u1,farg,x):
+    
+    H_transfer = np.exp(-1j * farg * x)
+    u1_fourier = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(u1)))
+    tmp_prop = H_transfer * u1_fourier
+    
+    u1 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(tmp_prop)))
+    return u1
 
 if __name__ == '__main__':
     main()
