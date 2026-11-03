@@ -172,7 +172,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
             'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,
             'zlow': zlow, 'seed0': seed0}
 
-# Used functions
+# Used functions ---------------------------------------------------------------------------
 
 def fried_param(wavelen,turbulence_integral):
     

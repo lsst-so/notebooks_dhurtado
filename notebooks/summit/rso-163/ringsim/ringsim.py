@@ -294,7 +294,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     return filename
 
-# Used functions
+# Used functions ---------------------------------------------------------------------------
 
 def average_screens(u1, nblur):
     if nblur > 1:
