@@ -66,7 +66,7 @@ def main():
 def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
              interpol=1, nstart=50, leak=1, flat=True, display=True, verb=True):
     
-    cube, param = read_cubefile(cubefile, verb)
+    cube, param = read_cubefile(cubefile)
     wavelen  = param['wavelen']
     d        = param['d']
     effl     = param['effl']
@@ -154,6 +154,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         # Update radius and centroids
         radii_i = c[:nsect]
         x0, y0, rad0, dr = update_centroid(radii_i, nsect, xsect, ysect, x0, y0, rad0, leak)
+        # Here it sees the last frame centroid
         xcent[i] = x0
         ycent[i] = y0
         rad[i] = dr
