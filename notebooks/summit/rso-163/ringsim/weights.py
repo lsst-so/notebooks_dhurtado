@@ -1,4 +1,3 @@
-# Here lies awegiths and getweights5 functions
 #!/usr/bin/env python3
 '''
 Computes the angular/radial response weights (aweight.pro) and
@@ -14,12 +13,11 @@ import codecs
 import json
 import logging
 import numpy as np
-import zernike
-
+from zernike import zernikel
 
 
 def main(par=None, verb=True):
-
+    
     # Import path: pass the par dict (from statmom) straight in.
     # CLI path: par is None, so read it from a --parfile JSON instead.
     if par is None:
@@ -31,9 +29,9 @@ def main(par=None, verb=True):
         args = p.parse_args()
         par = getpar(args.parfile)
         verb = args.verb
-
+    
     weight = computeweight(par, verb)
-    if verb: print(f'\n Weights computed and saved to weights.json')
+    if verb: print('\n Weights computed and saved to weights.json')
     if verb: print('  z-layers = {},  coeffs/layer = {}'.format(len(weight['z']), len(weight['wt0'][0])))
     if verb: print('  ring radius [pix] = {:.3f},  pdist [m] = {:.2f}'.format(weight['ringrad'], weight['pdist']))
     
@@ -44,7 +42,7 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
     # Computing parameters hard coded
     ngrid = 512   # half-size of computing grid [pix], only for inner calculations
     ksize = 6     # grid size/telescope diameter ratio
-
+    
     nz = z.shape[0]
     nwav = wav.shape[0]  # nwav is number of wavelengths
     spnorm = sp/np.sum(sp) # normalize the spectrum
@@ -53,96 +51,29 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
         wavstep = wav[1] - wav[0] # step of wavelength grid, assumed uniform
     else:
         wavstep = 0
-
-    # Define main calculation parameters
-    size = d * ksize  # domain size in pupil plane, [m]
-    asperpix = 206265 * lam0 / size  # fine-pixel in the image plane [arcsec]
-    fstep = 1 / size  # frequency step [1/m]
-    xstep = size / (2*ngrid)  # sampling of pupil grid, left for debug
-    ringradpix = 0.85 * d * (1+eps) / (4*pdist) * 206265 / asperpix # ring radius in fine pixels
     
-    # if ringradpix > 0.8 * ngrid:
-    #     print('Error: ring too wide, returning!')
-        
-
-    # Prepare the arrays
-    i = np.indices((2 * ngrid, 2 * ngrid))
-    x = i[1] - ngrid
-    y = i[0] - ngrid
-    r = np.sqrt( np.square(x) + np.square(y))
-    r[ngrid,ngrid] = 1e-3 # to avoid division by zero
-    phi = np.arctan2(y,x)  # 2D array of phase # plt.imshow(phi, cmap='Greys')
-
-    # Define the annular aperture in the pupil space
-    radpix = ngrid * d / size  # aperture radius, pixels
-    pupil = (r <= radpix) * (r >= eps*radpix) # boolean array, true inside pupil
-    ninside = np.sum(pupil)  # pupil surface [pix]
-
-    # Define conic wavefront at the pupil
-    a4 = d**2 / (lam0 * pdist) * (np.pi / 8 * 3**(-0.5))   # Zernike defocus corresponding to the propagation distance [rad]
-    a11 = -0.1 * a4       # spherical aberration coef. [rad]
-    tmp = a11 * 5**(0.5) * (6 * (r/radpix)**4  - 6 * (r/radpix)**2)
-    tmp = tmp + a4 * 2 * 3**0.5 * ((r/radpix)**2 - 0.5)  # wavefront shape [rad]
+    # Define main calculation parameters, grid and annular aperture
+    size, asperpix, fstep, r, phi, pupil, ninside, radpix = weight_grid(d, eps, lam0, ngrid, ksize)
     
-    # Optionally add Zernike aberrations
-    nzern = len(zn)
-    for j in range(0,nzern):
-        tmp += zrad[j]*zernike.zernikel(zn[j],r/radpix,phi)
-
-
-    uampl = pupil*(np.cos(tmp) + np.sin(tmp)*1j) # complex amplitude at the pupil
-
+    # Define conic wavefront at the pupil (optionally with static Zernikes)
+    uampl = conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil)
+    
     # Compute nominal ring image at the focal plane
     imh = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(uampl)))
     imh = np.power(np.abs(imh),2)/( (2 * ngrid)**2) # np.sum(imh) = ninside to check normalization
-
+    
     # Compute the masks
-    ringradpix2 = np.sum(imh * r) / ninside # true ring radius in fine pixels
-    ringrad = ringradpix2 * asperpix / pixel  # ring radius in CCD pixels
-    if verb: print ('Ring radius [pix]: ',ringrad)
-    drhopix = drho * lam0 / d / (1 - eps) * 2 * 206265 / asperpix # ring half-width [pix]
-    filtap = (r >= ringradpix2 - drhopix) * (r <= ringradpix2 + drhopix) # radial part of image mask
+    (filtap, ringmask, rwt, flux, rflux, 
+     ringrad, ringradpix2, spturb, spufunc, utmp) = ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0,
+                                                              d, eps, drho, fstep, nsect, ngrid, ksize, verb)
+    
     nm = mmax + 1  # number of angular coefficients
     wt = np.zeros((nz,nm))
     ufunc = np.zeros((nz,nm))
-
-    # Prepare things used in the loop
-    spturb = np.power(r, -11 / 3 ) * fstep**(-5 / 3) * ( 0.5 * 9.62 / np.pi ) * lam0**(-2) # turbulence phase spectrum for Jturb=1
-    spturb[ngrid,ngrid] = 0
-    spufunc = spturb * np.square(np.pi * fstep * r)  # for U-function calculation
-    flux = np.sum(imh * filtap) # flux inside the ring mask
-    utmp = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(np.conj(uampl)))) # auxiliary conjugated amplitude
-    #utmp = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(np.conj(uampl.copy())))) # auxiliary conjugated amplitude
-
-    # Radial mask for differential sector motion
-    sectrad = np.pi / nsect # sector width [rad] = 22.5deg for nsect=8
-    tmp = np.mod(phi + np.pi, np.pi)  # 180-folded phase
-    sector = (tmp >= np.pi / 2 - sectrad) * (tmp < np.pi / 2 + sectrad) # 1 within opposite 45-deg sectors
-    sector = np.transpose(sector) # rotate 90 degrees to match IDL, sectors along X
-    ringmask = filtap * sector
-    rflux = np.sum(imh * ringmask) # 1/4 of full flux
-    rwt = r * ringmask
-    tmp = np.sum(imh * rwt) / rflux  # mean radius, to make np.sum(imh*rwt)=0
-    rwt = rwt - tmp * ringmask # subtract to get zero signal without turbulence
-    rwt = rwt / ksize  # radius in lam/D units instead of fine pixels
-
+    
     # Prepare 2D Fresnel filters for propagation calculation
-    frecos = np.zeros((nz, 2 * ngrid, 2 * ngrid))
-    fresin = np.zeros((nz, 2 * ngrid, 2 * ngrid))
-    for iz in range(0,nz):
-        zdist = z[iz]
-        damp1 = np.exp(-np.square(0.5 * np.square(r * fstep) * wavstep * zdist)) #0.5 damping factor
-        spcos = np.zeros((2 * ngrid, 2 * ngrid))
-        spsin = np.zeros((2 * ngrid, 2 * ngrid))
-        for j in range(0,nwav):
-            w = wav[j]
-            arg = np.pi * w * zdist * np.square(r * fstep)
-            a = spnorm[j] * lam0 / w
-            spcos += a * np.cos(arg)
-            spsin += a * np.sin(arg)
-        frecos[iz,:,:] = spcos / spcos[ngrid,ngrid] * damp1
-        fresin[iz,:,:] = spsin / spcos[ngrid,ngrid] * damp1
-
+    frecos, fresin = fresnel_filters(z, r, fstep, wav, spnorm, lam0, wavstep, nwav, nz, ngrid)
+    
     # Compute the weights, loops in m and z
     for m in range(0,nm):  # loop over m
         if m==0: # radial weight
@@ -192,7 +123,155 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
             wt[iz,m] = np.sum(pfilter * spturb) * pixfact
             ufunc[iz,m] = np.sum(pfilter * spufunc)
     ###  End of the weight-calculation loop over m and z
-    return wt, ufunc, ringrad 
+    return wt, ufunc, ringrad
+
+
+def computeweight(par, verb=True):  # actual weight calculation
+    
+    # Unpack telescope/profrest parameters and optional aberrations
+    d, eps, pdist, pixscale, ringradpix, wav, sp, mmax, nsect, zn, zrad = telescope_parameters(par, verb)
+    
+    # Color spectra and effective wavelengths
+    sp0, sp1, lameff = color_spectrum(wav, sp)
+    
+    # distance grid, log-spaced with sqrt(2) step, 0.25-32km
+    z = distance_grid()
+    
+    # Find propagation distance from ring radius
+    pdist = correct_pdist(d, eps, pixscale, ringradpix, pdist, wav, sp0, zn, zrad, nsect, verb)
+    
+    # Weight for B-V=0
+    if verb: print('\n')
+    if verb: print('Computing weight for B-V=0...')
+    wt0, ufunc0, ringrad = aweight(z,mmax,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
+    hslope = pdist * ringrad
+    if verb: print(f'Ring radius and H*rad [m.pix]: {ringrad}, {hslope}')
+    # Weight for B-V=1
+    if verb: print('Computing weight for B-V=1...')
+    wt1, ufunc1, ringrad1 = aweight(z,mmax,d,eps,pdist,wav,sp1,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
+    
+    mm = [1,3,6,7,8,9] # selected frequencies for wind measurement
+    ucoef0, resp0 = getucoef(ufunc0,z,mm)
+    ucoef1, resp1 = getucoef(ufunc1,z,mm)
+    
+    # Color dependence
+    wtslope = wt1 - wt0
+    ucoefslope = ucoef1 - ucoef0
+    
+    # Serialize and save the weights
+    weight = {
+        'z':          z.tolist(),
+        'wt0':        wt0.tolist(),
+        'wtslope':    wtslope.tolist(),
+        'ucoef0':     ucoef0.tolist(),
+        'ucoefslope': ucoefslope.tolist(),
+        'umm':        mm,
+        'lameff':     lameff,
+        'ringrad':    ringrad,
+        'pdist':      pdist
+    }
+    
+    json_output_file = par['profrest']['weightfile']
+    try:
+        json.dump(weight, codecs.open(json_output_file, 'w', encoding='utf-8'), separators=(',', ':'), sort_keys=True, indent=4)
+    except FileNotFoundError as err:
+        if verb: print('{}:{}'.format(err, json_output_file))
+    if verb: print('Saved weights in '+json_output_file)
+    return weight
+
+
+# Used functions ---------------------------------------------------------------------------
+
+def weight_grid(d, eps, lam0, ngrid, ksize):
+    # Define main calculation parameters
+    size = d * ksize  # domain size in pupil plane, [m]
+    asperpix = 206265 * lam0 / size  # fine-pixel in the image plane [arcsec]
+    fstep = 1 / size  # frequency step [1/m]
+    
+    # Prepare the arrays
+    i = np.indices((2 * ngrid, 2 * ngrid))
+    x = i[1] - ngrid
+    y = i[0] - ngrid
+    r = np.sqrt( np.square(x) + np.square(y))
+    r[ngrid,ngrid] = 1e-3 # to avoid division by zero
+    phi = np.arctan2(y,x)  # 2D array of phase # plt.imshow(phi, cmap='Greys')
+    
+    # Define the annular aperture in the pupil space
+    radpix = ngrid * d / size  # aperture radius, pixels
+    pupil = (r <= radpix) * (r >= eps*radpix) # boolean array, true inside pupil
+    ninside = np.sum(pupil)  # pupil surface [pix]
+    return size, asperpix, fstep, r, phi, pupil, ninside, radpix
+
+
+def conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil):
+    # Define conic wavefront at the pupil
+    a4 = d**2 / (lam0 * pdist) * (np.pi / 8 * 3**(-0.5))   # Zernike defocus corresponding to the propagation distance [rad]
+    a11 = -0.1 * a4       # spherical aberration coef. [rad]
+    tmp = a11 * 5**(0.5) * (6 * (r/radpix)**4  - 6 * (r/radpix)**2)
+    tmp = tmp + a4 * 2 * 3**0.5 * ((r/radpix)**2 - 0.5)  # wavefront shape [rad]
+    
+    # Optionally add Zernike aberrations
+    tmp = zernike(tmp, zn, zrad, r, radpix, phi)
+    
+    uampl = pupil*(np.cos(tmp) + np.sin(tmp)*1j) # complex amplitude at the pupil
+    return uampl
+
+
+def zernike(tmp, zn, zrad, r, radpix, phi):
+    nzern = len(zn)
+    for j in range(0,nzern):
+        tmp += zrad[j]*zernikel(zn[j],r/radpix,phi)
+    return tmp
+
+
+def ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0, d, eps, drho,
+              fstep, nsect, ngrid, ksize, verb=True):
+    # Compute the masks
+    ringradpix2 = np.sum(imh * r) / ninside # true ring radius in fine pixels
+    ringrad = ringradpix2 * asperpix / pixel  # ring radius in CCD pixels
+    if verb: print ('Ring radius [pix]: ',ringrad)
+    drhopix = drho * lam0 / d / (1 - eps) * 2 * 206265 / asperpix # ring half-width [pix]
+    filtap = (r >= ringradpix2 - drhopix) * (r <= ringradpix2 + drhopix) # radial part of image mask
+    
+    # Prepare things used in the loop
+    spturb = np.power(r, -11 / 3 ) * fstep**(-5 / 3) * ( 0.5 * 9.62 / np.pi ) * lam0**(-2) # turbulence phase spectrum for Jturb=1
+    spturb[ngrid,ngrid] = 0
+    spufunc = spturb * np.square(np.pi * fstep * r)  # for U-function calculation
+    flux = np.sum(imh * filtap) # flux inside the ring mask
+    utmp = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(np.conj(uampl)))) # auxiliary conjugated amplitude
+    #utmp = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(np.conj(uampl.copy())))) # auxiliary conjugated amplitude
+    
+    # Radial mask for differential sector motion
+    sectrad = np.pi / nsect # sector width [rad] = 22.5deg for nsect=8
+    tmp = np.mod(phi + np.pi, np.pi)  # 180-folded phase
+    sector = (tmp >= np.pi / 2 - sectrad) * (tmp < np.pi / 2 + sectrad) # 1 within opposite 45-deg sectors
+    sector = np.transpose(sector) # rotate 90 degrees to match IDL, sectors along X
+    ringmask = filtap * sector
+    rflux = np.sum(imh * ringmask) # 1/4 of full flux
+    rwt = r * ringmask
+    tmp = np.sum(imh * rwt) / rflux  # mean radius, to make np.sum(imh*rwt)=0
+    rwt = rwt - tmp * ringmask # subtract to get zero signal without turbulence
+    rwt = rwt / ksize  # radius in lam/D units instead of fine pixels
+    return filtap, ringmask, rwt, flux, rflux, ringrad, ringradpix2, spturb, spufunc, utmp
+
+
+def fresnel_filters(z, r, fstep, wav, spnorm, lam0, wavstep, nwav, nz, ngrid):
+    frecos = np.zeros((nz, 2 * ngrid, 2 * ngrid))
+    fresin = np.zeros((nz, 2 * ngrid, 2 * ngrid))
+    for iz in range(0,nz):
+        zdist = z[iz]
+        damp1 = np.exp(-np.square(0.5 * np.square(r * fstep) * wavstep * zdist)) #0.5 damping factor
+        spcos = np.zeros((2 * ngrid, 2 * ngrid))
+        spsin = np.zeros((2 * ngrid, 2 * ngrid))
+        for j in range(0,nwav):
+            w = wav[j]
+            arg = np.pi * w * zdist * np.square(r * fstep)
+            a = spnorm[j] * lam0 / w
+            spcos += a * np.cos(arg)
+            spsin += a * np.sin(arg)
+        frecos[iz,:,:] = spcos / spcos[ngrid,ngrid] * damp1
+        fresin[iz,:,:] = spsin / spcos[ngrid,ngrid] * damp1
+    return frecos, fresin
 
 
 def blackbody(wav,temp):
@@ -235,8 +314,7 @@ def getpar(parfile): # read parameters, return the dictionary <par>
     return par
 
 
-def computeweight(par, verb=True):  # actual weight calculation
-
+def telescope_parameters(par, verb=True):
     # This should be argument parser
     d = float(par['telescope']['D'])
     eps = float(par['telescope']['eps'])
@@ -262,76 +340,42 @@ def computeweight(par, verb=True):  # actual weight calculation
         #print(zrad)
     else:
          zn = zrad = []
-    
+    return d, eps, pdist, pixscale, ringradpix, wav, sp, mmax, nsect, zn, zrad
+
+
+def color_spectrum(wav, sp):
     sp0 = sp * blackbody(wav, 10213) # B-V=0 spectrum
     sp1 = sp * blackbody(wav, 3938) # B-V=1 spectrum
     sp0 = sp0 / np.sum(sp0) # normalize
     sp1 = sp1 / np.sum(sp1)
     lameff = (np.sum(wav * sp0), np.sum(wav * sp1)) # effective wavelength
-    
+    return sp0, sp1, lameff
+
+
+def distance_grid():
     # distance grid, log-spaced with sqrt(2) step, 0.25-32km
     nz = 16
     z = np.zeros(nz)
     z[1:nz] = 1e3 * 2**(0.5 * np.arange(nz-1) -2)
+    return z
 
+
+def correct_pdist(d, eps, pixscale, ringradpix, pdist, wav, sp0, zn, zrad, nsect, verb=True):
     # Find propagation distance from ring radius. Use analytic approx. first
     Rmean = d * (1 + eps) / 4 # Mean of annulus radius
     HR = 0.85 * Rmean / pixscale * 206265 # H * R (proxy for alpha in papers)
     if verb: print(f'Rmean = {d} * (1 + {eps}) / 4')
     if verb: print(f'Initial H*R [m.pix] and Mean radius: {HR}, {Rmean}')
-
     
     pdist1 = HR / ringradpix
     wt0, ufunc0, ringrad = aweight(np.zeros(1),1,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb)
     
-    HR1 = ringrad * pdist # Adjust    
+    HR1 = ringrad * pdist # Adjust
     if verb: print(f'Expected Conjugation dist.: {pdist}')
-    pdist = HR1 / ringradpix
+    correct_pdist = HR1 / ringradpix
     if verb: print(f'Calculated Conjugation dist.: {pdist1}')
-    if verb: print(f'Adjusted H*R [m.pix] and pdist: {HR1}, {pdist}')
-
-    # return
-
-    # Weight for B-V=0
-    if verb: print(f'\n')
-    if verb: print('Computing weight for B-V=0...')
-    wt0, ufunc0, ringrad = aweight(z,mmax,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
-    hslope = pdist * ringrad
-    if verb: print(f'Ring radius and H*rad [m.pix]: {ringrad}, {hslope}')
-    # Weight for B-V=1
-    if verb: print('Computing weight for B-V=1...')
-    wt1, ufunc1, ringrad1 = aweight(z,mmax,d,eps,pdist,wav,sp1,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
-
-    mm = [1,3,6,7,8,9] # selected frequencies for wind measurement
-    ucoef0, resp0 = getucoef(ufunc0,z,mm)
-    ucoef1, resp1 = getucoef(ufunc1,z,mm)
-    #plt.plot(resp0)
-    #plt.plot(resp1)
-    
-    # Color dependence
-    wtslope = wt1 - wt0
-    ucoefslope = ucoef1 - ucoef0
-
-    # Serialize and save the weights
-    weight = {
-        'z':          z.tolist(),
-        'wt0':        wt0.tolist(),
-        'wtslope':    wtslope.tolist(),
-        'ucoef0':     ucoef0.tolist(),
-        'ucoefslope': ucoefslope.tolist(),
-        'umm':        mm,
-        'lameff':     lameff,
-        'ringrad':    ringrad,
-        'pdist':      pdist
-    }
-
-    json_output_file = par['profrest']['weightfile']
-    try:
-        json.dump(weight, codecs.open(json_output_file, 'w', encoding='utf-8'), separators=(',', ':'), sort_keys=True, indent=4)
-    except FileNotFoundError as err:
-        if verb: print('{}:{}'.format(err, json_output_file))
-    if verb: print('Saved weights in '+json_output_file)
-    return weight
+    if verb: print(f'Adjusted H*R [m.pix] and pdist: {HR1}, {correct_pdist}')
+    return correct_pdist
 
 
 if __name__ == '__main__':
