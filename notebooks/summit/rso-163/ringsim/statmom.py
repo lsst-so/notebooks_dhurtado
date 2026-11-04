@@ -1,4 +1,3 @@
-# Here lies the statmom function
 #!/usr/bin/env python3
 '''
 Computes the statistical moments (statmom.pro) of the per-frame
@@ -16,7 +15,6 @@ import logging  # debugging not supported
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
 
 
 def main():
@@ -51,56 +49,23 @@ def main():
 def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     
     # Calculation of statistical moments
-    m = mmax
-    
-    ncoef, nz = coef.shape
-    expected_ncoef = 2 * nsect + 2 * m + 2
+    ncoef, nz = coef.shape # Check shape
+    expected_ncoef = 2 * nsect + 2 * mmax + 2
     if verb: print(f'ncoef {ncoef} expect: {expected_ncoef}')
-    
     if ncoef != expected_ncoef:
         raise ValueError(f'Parameters do not match (ncoef={expected_ncoef}, got {ncoef})')
     
-    # Differential radius variance across opposite sector pairs (DIMM-like signals)
-    half_sect = nsect // 2
-    dr = coef[:half_sect, :] + coef[half_sect:nsect, :]  # (half_sect, nz)
-    drvar = np.var(dr, axis=1)                           # variances in pix^2
-    meanrvar = float(np.mean(drvar))
-    
-    # Radius noise from difference of successive dr values
-    ddr = dr - np.roll(dr, 1, axis=1)
-    drnoise = np.var(ddr, axis=1)                        # noise variances, pix^2
+    # Differential radius variance and radius noise (DIMM-like signals)
+    meanrvar, drnoise = radius_moments(coef, nsect)
     
     # Variance and covariance of angular coefficients
-    acoef = coef[2 * nsect :, :]                         # (2m+2, nz)
-    varcoef = np.var(acoef, axis=1)
-    meancoef = np.mean(acoef, axis=1)
-    tmp = (acoef * np.roll(acoef, 1, axis=1))[:, 1:]     # shift-1 product, drop first
-    covar = np.sum(tmp, axis=1) / (nz - 1) - meancoef ** 2
-    
-    # Add cosine (0..m) and sine (m+1..2m+1) variances and covariances
-    power = varcoef[: m + 1] + varcoef[m + 1 : 2 * m + 2]
-    cov = covar[: m + 1] + covar[m + 1 : 2 * m + 2]
+    power, cov, meancoef = angular_moments(coef, nsect, mmax, nz)
     
     # Mean coefficients for aberrations (mean radii and m=1,2,3 cos/sine terms)
-    mcoef = np.zeros(nsect + 6, dtype=np.float64)
-    mcoef[:nsect] = np.mean(coef[:nsect, :], axis=1)
-    mcoef[nsect : nsect + 3] = meancoef[1:4]
-    mcoef[nsect + 3 : nsect + 6] = meancoef[m + 2 : m + 5]
+    mcoef = aberration_coef(coef, meancoef, nsect, mmax)
     
     if display:
-        arg = np.arange(m + 1)
-        
-        plt.figure(figsize=(7, 5))
-        plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
-        plt.semilogy(arg, cov, 'r--', label='Covariance')
-        plt.xlabel('m')
-        plt.ylabel('Power')
-        plt.title('Angular Mode Spectrum')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
-        #plt.show()
-        plt.close()
+        save_image(power, cov, mmax)
     
     # Assemble output dictionaries (same structure as cube2.py)
     moments = {
@@ -145,6 +110,59 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
           'ringradpix:', par['telescope']['ringradpix'], 'ron:', par['telescope']['ron'])
     
     return par, data
+
+
+# Used functions ---------------------------------------------------------------------------
+
+def radius_moments(coef, nsect):
+    # Differential radius variance across opposite sector pairs (DIMM-like signals)
+    half_sect = nsect // 2
+    dr = coef[:half_sect, :] + coef[half_sect:nsect, :]  # (half_sect, nz)
+    drvar = np.var(dr, axis=1)                           # variances in pix^2
+    meanrvar = float(np.mean(drvar))
+    
+    # Radius noise from difference of successive dr values
+    ddr = dr - np.roll(dr, 1, axis=1)
+    drnoise = np.var(ddr, axis=1)                        # noise variances, pix^2
+    return meanrvar, drnoise
+
+
+def angular_moments(coef, nsect, mmax, nz):
+    acoef = coef[2 * nsect :, :]                         # (2m+2, nz)
+    varcoef = np.var(acoef, axis=1)
+    meancoef = np.mean(acoef, axis=1)
+    tmp = (acoef * np.roll(acoef, 1, axis=1))[:, 1:]     # shift-1 product, drop first
+    covar = np.sum(tmp, axis=1) / (nz - 1) - meancoef ** 2
+    
+    # Add cosine (0..m) and sine (m+1..2m+1) variances and covariances
+    power = varcoef[: mmax + 1] + varcoef[mmax + 1 : 2 * mmax + 2]
+    cov = covar[: mmax+ 1] + covar[mmax + 1 : 2 * mmax + 2]
+    return power, cov, meancoef
+
+
+def aberration_coef(coef, meancoef, nsect, mmax):
+    mcoef = np.zeros(nsect + 6, dtype=np.float64)
+    mcoef[:nsect] = np.mean(coef[:nsect, :], axis=1)
+    mcoef[nsect : nsect + 3] = meancoef[1:4]
+    mcoef[nsect + 3 : nsect + 6] = meancoef[mmax + 2 : mmax + 5]
+    return mcoef
+
+
+def save_image(power, cov, mmax):
+    arg = np.arange(mmax + 1)
+    
+    plt.figure(figsize=(7, 5))
+    plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
+    plt.semilogy(arg, cov, 'r--', label='Covariance')
+    plt.xlabel('m')
+    plt.ylabel('Power')
+    plt.title('Angular Mode Spectrum')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
+    #plt.show()
+    plt.close()
+
 
 if __name__ == '__main__':
     main()
