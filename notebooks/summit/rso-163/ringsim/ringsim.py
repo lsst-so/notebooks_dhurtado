@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 '''
-Simulates ring images and creates fits file
-Includes ringsim.pro and writefits.pro
-Currently does not support debugging
-Images should be saved and/or displayed
+Simulates ring images by propagating starlight through the
+atmosphere previously created, then outputs into
+a three-axis fits file.
 
+Part of the code translated from IDL to Python
+
+Usage:
+    python ringsim.py --help          # list all arguments and defaults
+    python ringsim.py 0.304 1.20845 0.7 1050 6.9e-6
+    import ringsim
+    ringsim.ringsim(0.304, 1.20845, 0.7, 1050, 6.9e-6)
+    help(ringsim.ringsim)             # docstring for any function
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
@@ -18,11 +25,9 @@ import matplotlib.colors as colors
 import matplotlib.animation as animation
 import numpy as np
 import os
-
 from astropy.io import fits
 import datetime
 from scipy.ndimage import zoom, shift as ndshift
-
 
 
 def main():
@@ -90,6 +95,34 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             starmag=1, wind=10, jitter=0, oversamp=True, blur=True,
             display=True, verb=True):
 
+    '''Simulate a ring-image cube and write it to a FITS file.
+
+    Work-horse of the script: loads the atmosphere field from
+    simatm.py, propagates the starlight through it frame by frame to
+    form the defocused ring images, adds detector noise and saves the
+    resulting cube to a FITS file (returned as a path).
+
+    Args:
+        d: Diameter of telescope M1, meters.
+        effl: Effective focal length, meters.
+        eps: Fraction of central obscuration.
+        pdist: Conjugation distance, meters.
+        pixsize: Camera pixel size, meters.
+        texp: Exposure time, seconds (1e-3).
+        tacc: Acquisition time, seconds (1).
+        ron: Read-out noise, electrons (0).
+        gain: Camera gain setting (0).
+        starmag: Star magnitude (1).
+        wind: Wind speed, m/s (10).
+        jitter: Amount of jitter, unit TBD (0).
+        oversamp: Whether to oversample (True).
+        blur: Whether to blur by averaging screens (True).
+        display: Save displayed images to the images folder (True).
+        verb: Print text to the CLI (True).
+
+    Returns:
+        Path to the written FITS cube ('test.fits').
+    '''
     with np.load('atm.npz') as data:
         u1        = data['u1']
         ngrid     = data['ngrid']
@@ -297,6 +330,10 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
 # Used functions ---------------------------------------------------------------------------
 
 def average_screens(u1, nblur):
+    '''
+    Averages blur and shifted copies of the screen to mimic the
+    motion blur of the atmosphere drifting during each exposure
+    '''
     if nblur > 1:
         tmp = np.copy(u1)
         for k in range(1, nblur):
@@ -307,6 +344,33 @@ def average_screens(u1, nblur):
 
 def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
                      tacc, d, eps, pdist, oversamp, verb=True):
+    
+    '''
+    Calculates the geometry of the ring and camera, and defines
+    parameters for how the ring will move in the main loop
+
+    Args:
+        ngrid: Half-size of the atmosphere grid, pixels.
+        pixel: Grid sampling, meters per grid pixel.
+        pixsize: Physical detector pixel size, meters.
+        effl: Effective focal length, meters.
+        wavelen: Reference wavelength, meters.
+        r0: Fried parameter, meters.
+        wind: Wind speed, m/s.
+        texp: Exposure time, seconds.
+        tacc: Acquisition time, seconds.
+        d: Aperture diameter, meters.
+        eps: Fraction of central obscuration.
+        pdist: Conjugation distance, meters.
+        oversamp: Whether to oversample.
+        verb: Print text to the CLI (True).
+
+    Returns:
+        A dict of derived geometry (size, alpha, pixscale, seeing,
+        tint, niter, jstep, windef, nap, d1, d2, npixperpix, nscr,
+        ksamp, finepix, asperpix, ccdbin, nccd, rradiuspix, HR).
+    '''
+
     size  = 2 * ngrid * pixel
     slide = 0.205
     alpha = slide / size
@@ -332,13 +396,12 @@ def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
     
     d1 = wavelen / pixscale * 206265
     if verb: print(f'd1: {d1}')
+    
     d2 = wavelen / pixel * 206265
     if verb: print(f'd2: {d2}')
     
-    if oversamp:
-        npixperpix = 2 ** (math.floor(math.log2(1.5 * d / d1)) + 1)
-    else:
-        npixperpix = 1
+    if oversamp: npixperpix = 2 ** (math.floor(math.log2(1.5 * d / d1)) + 1)
+    else: npixperpix = 1
     if verb: print(f'Pixel per pixel: {npixperpix}')
     
     nscr = 2 ** (math.floor(math.log2(1.5 * d / pixel)) + 1)
@@ -371,10 +434,33 @@ def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
 
 
 def photon_budget(starmag, texp, d, eps, BW=0.26, phot_con=1e11):
+    '''
+    Calculate the stellar photons collected per exposure.
+
+    Uses phot_con photons/s/m^2 for a magnitude-0 star at the top of
+    the atmosphere, scaled by the star magnitude, exposure time,
+    effective bandwidth and the annular collecting area. 
+
+    Where does it come from???
+
+    Args:
+        starmag: Star magnitude.
+        texp: Exposure time, seconds.
+        d: Aperture diameter, meters.
+        eps: Fraction of central obscuration.
+        BW: Effective bandwidth fraction (0.26).
+        phot_con: Photons/s/m^2 for a mag-0 star (1e11).
+
+    Returns:
+        Stellar photons collected in one exposure.
+    '''
     return phot_con * texp * BW * 10**(-0.4 * starmag) * np.pi * (d/2)**2 * (1 - eps)**2
 
 
 def make_aperture(nap, d, pixel, ksamp, eps):
+    '''
+    Creates the annular pupil aperture mask
+    '''
     apert = np.zeros((nap, nap))
     y, x = np.ogrid[:nap, :nap]
     r = np.hypot(x - nap / 2, y - nap / 2)
@@ -385,6 +471,7 @@ def make_aperture(nap, d, pixel, ksamp, eps):
 
 
 def defocus_phase(d, wavelen, pdist, r, radpix):
+    '''Applies main Zernike aberrations [a4, a11]'''
     a4 = (d ** 2 / (wavelen * pdist)) * (np.pi / (8 * np.sqrt(3)))
     a11 = -0.1 * a4
     rho = r / radpix
@@ -394,18 +481,36 @@ def defocus_phase(d, wavelen, pdist, r, radpix):
 
 
 def pupil_to_psf(pupil, nap):
+    '''
+    Propagate a pupil-plane complex amplitude to the focal plane.
+
+    Fraunhofer (far-field) propagation: inverse-FFT the pupil field
+    and re-center it, returning the centered focal-plane complex
+    amplitude. The caller squares the magnitude to get the intensity
+    (PSF / ring image).
+
+    Args:
+        pupil: Complex amplitude at the pupil.
+        nap: Aperture grid size, pixels (FFT normalization factor).
+
+    Returns:
+        Centered focal-plane complex amplitude.
+    '''
     shifted = np.fft.ifftshift(pupil)
     amp = np.fft.ifft2(shifted) * (nap ** 2)
     return np.fft.fftshift(amp)
 
 
 def apply_detector_noise(impix, starph, ron, rng, nccd):
+    '''Applies artificial noise into image'''
     impix = impix * starph
     impix_clean = np.maximum(0.0, impix)
     return rng.poisson(impix_clean).astype(np.float64) + rng.normal(loc=0.0, scale=ron, size=(nccd, nccd))
 
 
 def save_image(arr, title, fname, cmap='gray', log=False, colorbar=True):
+    '''Save function for several images in script'''
+    
     plt.figure(figsize=(6, 6))
     if log:
         plt.imshow(arr, cmap=cmap, origin='lower', norm=colors.LogNorm())
@@ -422,6 +527,29 @@ def save_image(arr, title, fname, cmap='gray', log=False, colorbar=True):
 
 def write_fits_cube(cube, d, effl, eps, pdist, wavelen, texp, ron, gain,
                     starmag, seeing, nccd, pixel, asperpix, filename='test.fits'):
+    '''
+    Saves the cube into a fits image for later analysis
+
+    Args:
+        cube: 3D image cube (nframes, ny, nx) to write.
+        d: Aperture diameter, meters (header DIAM).
+        effl: Effective focal length, meters (header EFFL).
+        eps: Fraction of central obscuration (header OBSC).
+        pdist: Conjugation height, meters (header CONJ_H).
+        wavelen: Reference wavelength, meters (header WAVELEN).
+        texp: Exposure time, seconds (header EXPOSURE, us).
+        ron: Read-out noise, electrons (header RON).
+        gain: Detector gain setting (header GAIN).
+        starmag: Stellar magnitude (header MAG).
+        seeing: Input seeing, arcsec (header SEEING).
+        nccd: Camera dimension, pixels (header CAM).
+        pixel: Grid pixel size, meters (header PIXGRID).
+        asperpix: Plate scale, arcsec/pixel (header PIXSCALE).
+        filename: Output FITS path ('test.fits').
+
+    Returns:
+        The written FITS file path.
+    '''
     hdu = fits.PrimaryHDU(cube.astype('float64'))
     
     header = hdu.header

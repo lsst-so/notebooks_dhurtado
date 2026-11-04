@@ -1,14 +1,25 @@
-# Full simulation
 #!/usr/bin/env python3
-'''
-Top-level driver: reads sim1.par-style inputs, then runs the full
-chain (simatm -> ringsim -> cubemom -> weight -> profrest) and
-prints the summary report (testsimul.pro).
+'''Top-level RINGSS simulation driver.
 
+Reads sim1.par-style inputs, then runs the full chain
+(simatm -> ringsim -> cubecoef -> statmom -> weights -> profrest) and
+prints the summary report.
+
+This driver is designed to run the atmosphere creation, ring image
+simulation and its coefficient processing to test for improvements
+and changes in numerical and physical models of RINGSS. It can be run
+on the CLI or through imports.
+
+Most of the code was translated from Andrei's original IDL, adding
+code already written in Python.
+
+Usage:
+    python testsimul.py --help        # list all arguments and defaults
+    python testsimul.py --seeing 1.2 --wind 8 --seed0 52403
+    import testsimul; testsimul.main(['--seeing', '1.2', '--wind', '8'])
 
 Auth: A. Tokovinin
-Translated: D. Hurtado
-
+Compiled: D. Hurtado
 '''
 import argparse
 import csv
@@ -26,7 +37,45 @@ from weights import computeweight
 import profrest
 
 def main(argv=None):
+    '''Run the full simulation chain from parsed CLI arguments.
 
+    Parses argv (or sys.argv when None), runs
+    simatm -> ringsim -> cubecoef -> statmom -> weights -> profrest,
+    prints the summary report and appends a row to
+    testsimul_results.csv.
+
+    Arguments (all optional, via --name; defaults in parentheses):
+        Telescope / detector:
+            --diam: Aperture diameter, m (0.304).
+            --effl: Effective focal length, m (1.20845).
+            --eps: Central obstruction (0.7).
+            --pixel: Grid sampling, m per grid pixel (0.017664).
+            --pixsize: Physical detector pixel size, m (6.9e-6).
+            --wavelen: Reference wavelength, m (0.6e-6).
+            --pdist: Defocus as conjugation height, m (1050).
+            --drad: Mask width in lambda/(0.5*D*(1-eps)) units (1.5).
+            --mmax: Max order of angular signals (20).
+            --nsect: Number of sectors for radius calc (8).
+            --interpol: Use sub-pixel shifts (1).
+            --ron: Readout noise, electrons (0).
+        Atmosphere / observation:
+            --seeing: Seeing in arcsec at 0.5 micron (1).
+            --wind: Wind speed, m/s (10).
+            --zlow: Low layer altitude, m (500).
+            --zhigh: High layer altitude, m (10500).
+            --highfrac: Fraction of turbulence in high layer (0.1).
+            --starmag: Star magnitude (2).
+            --gain: Camera gain setting (0).
+            --seed0: Fixed RNG seed for reproducible runs (52403).
+            --ngrid: Half size of the atmosphere grid (512).
+        Control:
+            --display: Save displayed images to auto-folder (True).
+            --verbose: Print text to the CLI (True).
+
+    Args:
+        argv: Optional list of CLI-style argument strings. When None,
+            arguments are read from sys.argv.
+    '''
     p = argparse.ArgumentParser()
 
     # Telescope / detector (sim1.par)
@@ -125,9 +174,9 @@ def main(argv=None):
 
     moments = data['moments']
     noisepar = impar['noisepar']
-
-    # Noise on the angular and radial coefficients
     flux = impar['flux']                                   # star flux, ADU per frame
+    
+    # Noise on the angular and radial coefficients
     anoise = noisepar[0] / flux + noisepar[1] * (ron / flux) ** 2  # noise variance of a-coef
     flux1 = flux / nsect                                   # flux per sector
     rnoise1 = 2 * (noisepar[2] / flux1 + noisepar[3] * (ron / flux1) ** 2 / nsect)  # radius noise, pix^2
@@ -136,7 +185,7 @@ def main(argv=None):
     z = np.array(weight['z'])              # nominal weight-distance grid [m] (len 16)
     wt0 = np.array(weight['wt0']).T        # transpose to (m, nz) to match IDL wt0[m, z]
     ucoef0 = np.array(weight['ucoef0'])
-    mm = weight['umm']
+    #mm = weight['umm']
 
     # Angular power spectrum and covariance from statmom
     powspec = np.array(moments['var'], float)
@@ -235,15 +284,34 @@ def main(argv=None):
     results = collect_results(par, data, profile, moments, coef, inputs=inputs)
     results_to_csv(results)
     
-    # Human-readable echo (kept for interactive use)
+    # Human-readable echo
     #for name, value in results.items():
         #print(f'{name:<20} {value}')
     
     if verb: print('\nSimulated cube is processed! Results written to testsimul_results.csv')
-
+        
+    if os.path.exists('atm.npz'):
+        try: os.remove('atm.npz')
+        except: print('Could not delete atm.npz')
+        if verb: print('Deleted atm.npz file')
+    else:
+        print('atm.npz does not exist (maybe renamed or manually deleted?)')
 
 def collect_results(par, data, profile, moments, coef, inputs=None):
-    
+    '''Collect and condense the pipeline results into one flat dict.
+
+    Args:
+        par: Telescope/profrest parameter dict (from statmom).
+        data: Image/moments data dict (from statmom).
+        profile: Restored profile dict (from profrest).
+        moments: Statistical-moments dict, i.e. data['moments'].
+        coef: Per-frame coefficient array (from cubecoef).
+        inputs: Optional OrderedDict of simulation "truth" inputs,
+            prepended to the output; None to omit.
+
+    Returns:
+        An OrderedDict of all results, ready for results_to_csv.
+    '''
     tel = par['telescope']
     prof_par = par['profrest']
     impar = data['image']['impar']
@@ -334,7 +402,19 @@ def collect_results(par, data, profile, moments, coef, inputs=None):
 
 
 def results_to_csv(results, filename='testsimul_results.csv'):
+    '''Append a results dict as one row to a CSV file.
 
+    Writes a header row first if the file does not yet exist.
+
+    Args:
+        results: OrderedDict of results (from collect_results); its
+            keys become the CSV column names.
+        filename: Output CSV path; defaults to
+            'testsimul_results.csv'.
+
+    Returns:
+        The same results dict that was written.
+    '''
     write_header = not os.path.exists(filename)
     with open(filename, 'a', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=list(results.keys()))
