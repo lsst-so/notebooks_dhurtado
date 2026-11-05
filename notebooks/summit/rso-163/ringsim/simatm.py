@@ -2,21 +2,14 @@
 '''
 Create the atmosphere for simulation.
 Based on input parameters (or left at default),
-constructs an atmosphere screen.
-Currently does not support debugging
+constructs an atmospheric noise screen.
 
-Necessary parameters:
-pixel
-r0
-
-Parameters with defaults:
-wavelen
-ngrid
-zlow
-zhigh
-fhigh
-seed0
-
+Usage:
+    python simatm.py --help           # list all arguments and defaults
+    python simatm.py 0.017664 0.12
+    import simatm
+    simatm.simatm(0.017664, 0.12)
+    help(simatm.simatm)               # docstring for any function
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
@@ -73,7 +66,30 @@ def main():
 
 def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
            fhigh=0.1, seed0=52403, display=True, verb=True):
-    
+    '''
+    Main module on the script; takes the input parameters and
+    creates the 2D atmosphere simulation, then stores it
+    in a .npz (numpy) file.
+
+    Args:
+        pixel: Grid sampling, meters per grid pixel (not arcsec).
+        r0: Fried parameter from the seeing, meters.
+        wavelen: Reference wavelength, meters (0.6e-6).
+        ngrid: Half-size of the atmosphere grid, pixels (512).
+        zlow: Low layer altitude, meters (500).
+        zhigh: High layer altitude, meters (10500).
+        fhigh: Fraction of turbulence in the high layer (0.1).
+        seed0: RNG seed for reproducible runs; None draws a random
+            one (52403).
+        display: Save the atmosphere image to the images folder
+            (True).
+        verb: Print text to the CLI (True).
+
+    Returns:
+        A dict of the simulated field and parameters (screen, ngrid,
+        pixel, wavelen, see, r0, fhigh, zhigh, zlow, seed0). Also
+        written to 'atm.npz'.
+    '''
     if zlow >= zhigh:
         raise ValueError(f"Inconsistency: zlow ({zlow}) can't be greater or equal than zhigh ({zhigh})")
     
@@ -119,27 +135,27 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     # Simulate turbulence in high layer
     if fhigh > 0:
         if verb: print('Simulating high layer')
-        u1 = sim_turbulence(ngrid,facthigh,r,rng)
+        screen = sim_turbulence(ngrid,facthigh,r,rng)
         
         # Propagate using Angular spectrum method (Zhigh -> Zlow)
         if (zhigh - zlow) > 0:
             if verb: print('Propagating to low layer')
             dz = zhigh - zlow
-            u1 = propagate(u1,farg,dz)
+            screen = propagate(screen,farg,dz)
     else:
-        u1 = np.ones((ngrid*2, ngrid*2), dtype=np.complex128)
+        screen = np.ones((ngrid*2, ngrid*2), dtype=np.complex128)
     
     # Simulate Low layer
     if verb: print('Simulating low layer')
-    u1 *= sim_turbulence(ngrid,factlow,r,rng)
+    screen *= sim_turbulence(ngrid,factlow,r,rng)
     
     # Propagate to ground (Zlow -> 0 km)
     if verb: print('Propagating to ground')
-    u1 = propagate(u1,farg,zlow)
+    screen = propagate(screen,farg,zlow)
     
     np.savez(
         'atm.npz',
-        u1=u1,
+        screen=screen,
         ngrid=ngrid,
         pixel=pixel,
         wavelen=wavelen,
@@ -152,9 +168,9 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
         )
     
     # Diagnostics
-    scint = np.sum((np.abs(u1)**2 - 1)**2) / (2 * ngrid) ** 2
+    scint = np.sum((np.abs(screen)**2 - 1)**2) / (2 * ngrid) ** 2
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
-    intensity = np.abs(u1) ** 2
+    intensity = np.abs(screen) ** 2
     
     if verb: print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
@@ -168,18 +184,44 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
         #plt.show()
         plt.close()  # release the figure so repeated runs don't accumulate figures
 
-    return {'u1': u1, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,
+    return {'screen': screen, 'ngrid': ngrid, 'pixel': pixel, 'wavelen': wavelen,
             'see': see, 'r0': r0, 'fhigh': fhigh, 'zhigh': zhigh,
             'zlow': zlow, 'seed0': seed0}
 
 # Used functions ---------------------------------------------------------------------------
 
 def fried_param(wavelen,turbulence_integral):
-    
+    '''
+    Calculates the Fried Parameter (r0) of its respective layer.
+
+    Inverts the standard turbulence-integral relation
+    J = 0.423 * (2*pi/lambda)^2 * r0^(-5/3)
+    Reference unspecified in the original code.
+
+    Args:
+        wavelen: Reference wavelength, meters.
+        turbulence_integral: Layer turbulence integral J, m^(1/3).
+
+    Returns:
+        The Fried parameter r0 of the layer, meters.
+    '''
     r0 = (0.423 * (0.5 * wavelen / np.pi)**(-2) * turbulence_integral)**(-3 / 5)
     return r0
 
 def create_grid(ngrid):
+    '''
+    Create a grid space for the simulation.
+
+    Builds a (2*ngrid, 2*ngrid) map of radial distance from the
+    center in pixels; the center pixel is set to 1e-3 to avoid
+    division by zero.
+
+    Args:
+        ngrid: Half-size of the grid, pixels.
+
+    Returns:
+        2D array of radial distance from the center, pixels.
+    '''
     y, x = np.ogrid[:ngrid * 2, :ngrid * 2]
     r = np.sqrt((x - ngrid)**2 + (y - ngrid)**2, dtype=np.float64)
     r[ngrid, ngrid] = 1e-3
@@ -187,7 +229,23 @@ def create_grid(ngrid):
 
 
 def sim_turbulence(ngrid,fact,r,rng):
-    
+    '''
+    Create the 2D noise screen that
+    mimics atmospheric turbulence.
+
+    Draws a complex Gaussian spectrum, shapes it with the
+    Kolmogorov r^(-11/6) power law scaled by fact, inverse-FFTs to a
+    phase screen and returns the complex field exp(i*phase).
+
+    Args:
+        ngrid: Half-size of the grid, pixels.
+        fact: Turbulence strength factor for the layer.
+        r: 2D radial-distance grid, pixels (from create_grid).
+        rng: numpy random Generator for the Gaussian draw.
+
+    Returns:
+        2D complex field exp(i*phase) of the turbulent layer.
+    '''
     rng_complex = rng.normal(size=(ngrid*2, ngrid*2)) +1j * rng.normal(size=(ngrid*2, ngrid*2))
     tmp_fourier = fact * (r ** (-11 / 6)) * rng_complex
     tmp_fourier[ngrid, ngrid] = 0 + 0j
@@ -196,18 +254,33 @@ def sim_turbulence(ngrid,fact,r,rng):
     tmp_phase = np.fft.fftshift(tmp_spatial).real
 
     # Simulate phase
-    u1 = np.exp(1j * tmp_phase)
-    return u1
+    screen = np.exp(1j * tmp_phase)
+    return screen
 
     
-def propagate(u1,farg,x):
-    
+def propagate(screen,farg,x):
+    '''
+    Take the turbulences in its respective layers
+    and project it to the lower boundry.
+
+    Angular-spectrum (Fresnel) propagation: multiplies the field's
+    Fourier transform by the transfer function exp(-i*farg*x) and
+    inverse-transforms back.
+
+    Args:
+        screen: 2D complex field to propagate.
+        farg: Fresnel phase argument grid, pi*wavelen/size^2 * r^2.
+        x: Propagation distance, meters.
+
+    Returns:
+        The propagated 2D complex field.
+    '''
     H_transfer = np.exp(-1j * farg * x)
-    u1_fourier = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(u1)))
-    tmp_prop = H_transfer * u1_fourier
+    screen_fourier = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(screen)))
+    tmp_prop = H_transfer * screen_fourier
     
-    u1 = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(tmp_prop)))
-    return u1
+    screen = np.fft.fftshift(np.fft.ifft2(np.fft.ifftshift(tmp_prop)))
+    return screen
 
 if __name__ == '__main__':
     main()

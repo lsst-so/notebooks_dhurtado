@@ -1,10 +1,13 @@
-# Profile restoration
 #!/usr/bin/env python3
 '''
 Restores the turbulence profile from the angular moments,
 weights, and saturation matrix (profrest5.pro).
 
-Currently not compatible with CLI due to Dict inputs
+Usage:
+    python profrest.py --help         # list all arguments and defaults
+    python profrest.py --datafile data.json --weightfile weights.json --parfile par.json
+    import profrest; profile = profrest.main(par, data, weight)   # dicts from statmom/weights
+    help(profrest.restore)            # docstring for any function
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
@@ -18,15 +21,33 @@ import os
 from scipy import optimize
 
 
-
 def main(par=None, data=None, weight=None,
          zmatfile=os.path.join('.', 'zmat.json'),
          zen=0, bv=0, gain=0, display=True, verb=True):
-
-    # Import path: pass par/data/weight dicts (from statmom + computeweight)
-    # straight in. CLI path: they are None, so read them from JSON files.
-    # (CLI not wired yet -- dict positionals can't come from the command line;
-    #  add --datafile/--weightfile/--parfile loaders here when needed.)
+    '''
+    Entry point for the profile restoration.
+    
+    If the par/data/weight dicts are passed in (import path), uses
+    them directly; otherwise reads them from JSON files given on the
+    CLI. Sets the observing geometry, then calls restore().
+    
+    Args:
+        par: Telescope/profrest parameter dict (from statmom); None
+            to read from --parfile.
+        data: Image/moments data dict (from statmom); None to read
+            from --datafile.
+        weight: Weight dict (from weights.py); None to read from
+            --weightfile.
+        zmatfile: Saturation Z-matrix JSON path ('./zmat.json').
+        zen: Zenith distance of the star, degrees (0).
+        bv: Star color B-V, 0=blue (0).
+        gain: Detector gain setting (0).
+        display: Save the diagnostic plot (True).
+        verb: Print text to the CLI (True).
+    
+    Returns:
+        The restored profile dict (see restore()).
+    '''
     if par is None or data is None or weight is None:
         
         p = argparse.ArgumentParser()
@@ -50,9 +71,9 @@ def main(par=None, data=None, weight=None,
                        help='Decides if images are displayed, boolean, def=True')
         p.add_argument('--verbose', dest='verb', type=bool, default=True,
                        help='Print text into CLI, def=True')
-
+        
         args = p.parse_args()
-
+        
         data = read_json(args.datafile)
         weight = read_json(args.weightfile)
         par = read_json(args.parfile)
@@ -62,31 +83,48 @@ def main(par=None, data=None, weight=None,
         gain = args.gain
         display = args.display
         verb = args.verb
-
+    
     zmat = read_json(zmatfile)   # (20,5) saturation matrix, La Serena
-
+    
     # Heights [m] for the restored profile (same as testsimul.pro z0 / par-laserena zgrid)
     par['profrest']['zgrid'] = [0, 250, 500, 1000, 2000, 4000, 8000, 16000]
-
+    
     # Observing geometry of the simulated star
     data['starpar'] = {'zen': zen, 'BV': bv}    # simulated at zenith
     data['cubepar'] = {'gain': gain}            # detector gain from the sim1.par cell
-
+    
     profile = restore(par, data, weight, zmat, display, verb)
-
+    
     prof = np.array(profile['prof'], float) / 1e13
     wind = float(profile['wind'])
     erms = float(profile['erms'])
     if verb: print('Profile restored!')
-
+    
     return profile
 
 
-# Profile restoration. Inputs: dictionaries of parameters, data, weights, and Z-matrix
-# Output: dictionary of profile parameters
-# Before calling Restore, run getzen.py to define the zenith distance and star color in data
 def restore(par, data, weight, zmat, display=True, verb=True):
+    '''
+    Main workhorse of the restoration, out from the
+    cube coefficients and weights (calculated earlier or not)
+    finds the atmospheric turbulence profile. Takes the
+    parameters, data, weights and layers and derives
+    wind, seeing and turbulence profile.
     
+    Args:
+        par: Telescope/profrest parameter dict (holds zgrid, ron).
+        data: Image/moments data dict (moments, impar, noisepar,
+            starpar, cubepar).
+        weight: Weight dict (z, wt0, wtslope, ucoef0, lameff, ...).
+        zmat: Saturation Z-matrix (array).
+        display: Save the power-spectrum plot (True).
+        verb: Print text to the CLI (True).
+    
+    Returns:
+        A dict with the turbulence profile and derived quantities:
+        z0, prof, see (total), fsee (free-atm), see2 (sector), wind,
+        erms, totvar, tau0, theta0.
+    '''
     if verb: print(data['image']['impar'])
     
     var =      data['moments']['var']  # variance of a-coefficients
@@ -97,27 +135,27 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     zen =      starpar['zen']
     bv =       starpar['BV']
     z0 =       par['profrest']['zgrid']  # grid of heights representing the turbulence profile
-
+    
     cosz = np.cos(zen / 180 * np.pi)  # cos(z)
     mmax = 20  # hard-coded number of terms to use
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
-
+    
     # Prepare weights and interpolate to the Z0 grid, trim to mmax
     z, nm, wt = prepare_weights(weight, bv)
     wt1, wtsect, nz0 = interpolate(z, wt, z0, cosz, mmax)
-
+    
     # Check that moments and weights have the same number of coefficients
     mcoef = len(var)  # 21 for mmax=20
     if mcoef != nm:
         raise ValueError('Error! Mismatching number of coefficients: ', mcoef, nm)
-
+    
     # Noise bias and power correction
     anoise, rnoise = noise_bias(data, par, verb)
     varz, totvar, var1, cov1 = check_power(var, cov, zmat, anoise, mmax)
-
+    
     # Weighted NNLS inversion
     prof, erms, varmod = solve_profile(wt1, varz, var, mmax, verb)
-
+    
     if display:
         arg = np.arange(mmax) + 1                         # findgen(mmax)+1
         plt.errorbar(arg, varz, yerr=anoise, fmt='s', capsize=3,
@@ -133,39 +171,48 @@ def restore(par, data, weight, zmat, display=True, verb=True):
         plt.savefig(os.path.join('images', 'power_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
         plt.close()  # release the figure so repeated runs don't accumulate figures
-
+    
     # Seeing from the scintillation profile (total + free atmosphere)
-    see, fsee, jtot, prof1 = see_profile(prof, cosz, nz0, seeconst)
+    scint_see, free_see, jtot, prof1 = see_profile(prof, cosz, nz0, seeconst)
     
     # Seeing from the radius variance (sector motion)
-    see2 = see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seeconst)
-    if verb: print(f'Seeing (sect,tot,FA): {see2:.3f} {see:.3f} {fsee:.3f}')
+    sector_see = see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seeconst)
+    if verb: print(f'Seeing (sect,tot,FA): {sector_see:.3f} {scint_see:.3f} {free_see:.3f}')
     
     # Wind measurement
     v2, jwind = wind_speed(var1, cov1, weight, prof, bv, nz0, verb)
     
     # Coherence time and isoplanatic angle
-    tau0, theta0 = coherence(jwind, v2, see, z0, prof1)
+    tau0, theta0 = coherence(jwind, v2, scint_see, z0, prof1)
     
     # Output dictionary
     profile = {
         'z0':     z0, 
         'prof':   (prof * 1e13).tolist(), 
-        'see':    see, 
-        'fsee':   fsee, 
-        'see2':   see2, 
+        'see':    scint_see, 
+        'fsee':   free_see, 
+        'see2':   sector_see, 
         'wind':   v2, 
         'erms':   erms,
         'totvar': totvar, 
         'tau0':   tau0, 
         'theta0': theta0
               }
-
+    
     return profile
 
 # Used functions ---------------------------------------------------------------------------
 
-def read_json(filename): # read a json file, return a dictionary; returns None if fails
+def read_json(filename):
+    '''
+    Takes a .json file with data and returns the content.
+    
+    Args:
+        filename: Path to the JSON file to read.
+    
+    Returns:
+        The parsed object, or None if the file is not found.
+    '''
     try:
         file = open(filename, 'r')
         p = json.load(file)
@@ -177,6 +224,21 @@ def read_json(filename): # read a json file, return a dictionary; returns None i
 
 
 def prepare_weights(weight, bv):
+    '''
+    Takes the calculated weights for each
+    layer and prepares them for processing.
+    
+    Reshapes the weight table to (nz, nm) 
+    and applies the star-color (B-V) correction.
+    
+    Args:
+        weight: Weight dict holding 'z', 'wt0', 'wtslope'.
+        bv: Star color B-V (0=blue).
+    
+    Returns:
+        (z, nm, wt): the distance grid, number of coefficients per
+        layer, and the color-adjusted (nz, nm) weight table.
+    '''
     z = np.array(weight['z'])   # nominal distance grid of weights
     nz = len(weight['z'])       # number of layers in weights
     nm = len(weight['wt0'][0])  # number of coefficints per layer
@@ -186,6 +248,24 @@ def prepare_weights(weight, bv):
 
 
 def interpolate(z, wt, z0, cosz, mmax):
+    '''
+    Interpolates the weights onto the restoration altitude grid.
+    
+    Stretches the z0 grid by 1/cos(zen) for the line of sight, then
+    interpolates each of the mmax angular weights and the sector
+    weight from the nominal grid z onto it.
+    
+    Args:
+        z: Nominal weight-distance grid.
+        wt: Color-adjusted (nz, nm) weight table.
+        z0: Restoration altitude grid, meters.
+        cosz: Cosine of the zenith distance.
+        mmax: Number of angular terms to keep.
+    
+    Returns:
+        (wt1, wtsect, nz0): the (nz0, mmax) interpolated angular
+        weights, the interpolated sector weight, and len(z0).
+    '''
     nz0 = len(z0)
     z00 = np.array(z0) / cosz  # stretched array of nominal heights
     wt1 = np.zeros((nz0, mmax))  # interpolated and trimmed weights
@@ -196,7 +276,21 @@ def interpolate(z, wt, z0, cosz, mmax):
 
 
 def noise_bias(data, par, verb=True):
-    # noise bias, see allcubes5.pro => noisecubes
+    '''
+    Computes measured flux to e- and combines it with noise 
+    parameters and read-out noise into the angular (anoise) 
+    and radial (rnoise) noise variances.
+    
+    Args:
+        data: Data dict (holds cubepar.gain, image.noisepar,
+            image.impar.flux).
+        par: Parameter dict (holds telescope.ron).
+        verb: Print text to the CLI (True).
+    
+    Returns:
+        (anoise, rnoise): angular-coefficient noise variance and
+        radius noise variance (pix^2).
+    '''
     gain = data['cubepar']['gain']  # electrons per ADU
     #eladu = 3.60 * pow(10, -gain / 200)
     eladu = 1 # sim counts photo-electrons directly (gain=0 in sim1.par => ADU == electrons); was 0.3 for a real gain=200 camera
@@ -204,13 +298,31 @@ def noise_bias(data, par, verb=True):
     fluxadu = float(data['image']['impar']['flux'])
     if verb: print(f'Fluxadu: {fluxadu}')
     flux = eladu * fluxadu  # flux in electrons
-
+    
     anoise = float(noisepar[0]) / flux + float(noisepar[1]) * pow(par['telescope']['ron'] / flux, 2)  # noise variance of a-coef
     rnoise = 2 * (float(noisepar[2]) / flux + float(noisepar[3]) * pow(par['telescope']['ron'] / flux, 2) / 8)  # noise on radius, pix^2
     return anoise, rnoise
 
 
 def check_power(var, cov, zmat, anoise, mmax):
+    '''
+    Subtracts the noise bias from the variance,
+    applies the finite-exposure-time correction using the
+    variance/covariance ratio, and then the matrix saturation
+    correction, giving the corrected power spectrum variables.
+    
+    Args:
+        var: Variance of the a-coefficients (per m).
+        cov: 1-frame-lag covariance of the a-coefficients (per m).
+        zmat: Saturation Z-matrix (array).
+        anoise: Angular-coefficient noise variance (from noise_bias).
+        mmax: Max angular order used in the restoration.
+    
+    Returns:
+        (varz, totvar, var1, cov1): the saturation-corrected power,
+        the full scintillation power (sum of var), and the
+        noise-subtracted var1 and raw cov1 arrays (reused for wind).
+    '''
     # Select max frequency used in the restoration
     var1 = np.array(var[1:mmax + 1], float) - anoise
     var1 *= (var1 > 0)  # prevent negative (sets negative values to zero)
@@ -218,7 +330,7 @@ def check_power(var, cov, zmat, anoise, mmax):
     rho = cov1 / var1
     varcorr = var1 / (0.8 + 0.2 * rho)  # correction for finite exposure time
     totvar = np.sum(np.array(var, float))  # full scintillation power
-
+    
     # Z-matrix correction. Avoid negative values!
     z1 = np.array(zmat)
     ncol = z1.shape[1]
@@ -228,6 +340,22 @@ def check_power(var, cov, zmat, anoise, mmax):
 
 
 def solve_profile(wt1, varz, var, mmax, verb=True):
+    '''
+    With the weights and variables in each M layer
+    resolves the non-negative least-squares system
+    to recover the layer turbulence integrals.
+    
+    Args:
+        wt1: (nz0, mmax) interpolated weight table (from interpolate).
+        varz: Saturation-corrected power (from check_power).
+        var: Raw variance of the a-coefficients (for the weighting).
+        mmax: Max angular order used.
+        verb: Print text to the CLI (True).
+    
+    Returns:
+        (prof, erms, varmod): the per-layer turbulence integrals
+        [m^(1/3)], the RMS fit residual, and the modeled power.
+    '''
     # weighted nnls. Weight is proportional to 1/var (before noise subtraction, non-negative)
     varwt = np.power(np.array(var[1:mmax + 1], float), -1)
     a2 = np.transpose(wt1.copy())  # matrix of (mmax-1,nz) dimension
@@ -235,38 +363,90 @@ def solve_profile(wt1, varz, var, mmax, verb=True):
         a2[i, :] *= varwt[i]
     varz2 = varz * varwt
     prof, resvar = optimize.nnls(a2, varz2)  # turbulence intergals in  [m^1/3] in z0 layers
-
+    
     varmod = np.dot(a2, prof) / varwt
     erms = np.std(1. - varmod / varz)
     if verb: print(f'RMS residual: {erms:.3f}')
     return prof, erms, varmod
 
 
-def see_scint(jtot, seeconst):
-    return pow(jtot / seeconst, 0.6)  # seeing in arcseconds
+def seeing(j, seeconst):
+    '''
+    Evaluates the seeing with the turbulence integral.
+    
+    Args:
+        j: Turbulence integral J, m^(1/3).
+        seeconst: Integral giving 1" seeing at 500 nm.
+    
+    Returns:
+        Seeing in arcseconds.
+    '''
+    return pow(j / seeconst, 0.6)
 
 
-def see_free(jfree, seeconst):
-    return pow(jfree / seeconst, 0.6)  # FA seeing in arcseconds
-
-
-def see_sector(jtot2, cosz, seeconst, totvar):
-    see2 = pow(jtot2 * cosz / seeconst, 0.6)  # seeing at zenith, arcsec
-    see2 *= 1 / (1 - 0.4 * totvar)  # saturation correction
-    return see2
+def seeing_sector(jtot2, cosz, seeconst, totvar):
+    '''
+    Evaluates sector (DIMM-like) seeing in particular.
+    
+    Args:
+        jtot2: Sector-motion turbulence integral, m^(1/3).
+        cosz: Cosine of the zenith distance.
+        seeconst: Integral giving 1" seeing at 500 nm.
+        totvar: Full scintillation power (for the saturation term).
+    
+    Returns:
+        Sector seeing in arcseconds.
+    '''
+    sector_see = pow(jtot2 * cosz / seeconst, 0.6)  # seeing at zenith, arcsec
+    sector_see *= 1 / (1 - 0.4 * totvar)  # saturation correction
+    return sector_see
 
 
 def see_profile(prof, cosz, nz0, seeconst):
+    '''
+    Evaluates the profile-dependent zenith-corrected 
+    seeing, total (all-layer) and free-atmosphere (>0.5 km).
+    
+    Args:
+        prof: Per-layer turbulence integrals (from solve_profile).
+        cosz: Cosine of the zenith distance.
+        nz0: Number of layers in the restoration grid.
+        seeconst: Integral giving 1" seeing at 500 nm.
+    
+    Returns:
+        (scint_see, free_see, jtot, prof1): total seeing, free-atm
+        seeing, total turbulence integral, and the zenith-corrected
+        profile.
+    '''
     prof1 = prof * cosz  # zenith-corrected integrals
     jtot = np.sum(prof1)  # turbulence integral
     jfree = np.sum(prof1[2:nz0])  # start at 0.5km
-    see = see_scint(jtot, seeconst)
-    fsee = see_free(jfree, seeconst)
-    return see, fsee, jtot, prof1
+    scint_see = seeing(jtot, seeconst)
+    free_see = seeing(jfree, seeconst)
+    return scint_see, free_see, jtot, prof1
 
 
 def see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seeconst):
-    # Compute seeing from radius var.
+    '''
+    Noise-subtracts and normalizes the radius variance, weights it by
+    the profile-adjusted sector weight, and converts to seeing via
+    seeing_sector.
+    
+    Args:
+        data: Data dict (holds moments.rvar).
+        par: Parameter dict (holds telescope.D, telescope.pixel).
+        weight: Weight dict (holds lameff).
+        prof: Per-layer turbulence integrals.
+        wtsect: Interpolated sector weight (from interpolate).
+        cosz: Cosine of the zenith distance.
+        totvar: Full scintillation power (for the saturation term).
+        rnoise: Radius noise variance (from noise_bias).
+        bv: Star color B-V.
+        seeconst: Integral giving 1" seeing at 500 nm.
+    
+    Returns:
+        Sector seeing in arcseconds.
+    '''
     d = par['telescope']['D']
     pixel = par['telescope']['pixel']
     lameff = weight['lameff']
@@ -274,13 +454,30 @@ def see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seecon
     rvar = float(data['moments']['rvar']) - rnoise  # radius variance in pix^2, noise-subtracted
     lamd = lam0 / d * 206265  # lambda/D in arcseconds
     rvarnorm = rvar * pow(pixel / lamd, 2)  # variance in (lam/D^2) units
-
+    
     wcoef = np.sum(wtsect * prof) / np.sum(prof)  # profile-adjusted weight of sector variance
     jtot2 = rvarnorm / wcoef / 4  # turbulence intergal, m^1/3. Explain factor 4!
-    return see_sector(jtot2, cosz, seeconst, totvar)
+    return seeing_sector(jtot2, cosz, seeconst, totvar)
 
 
 def wind_speed(var1, cov1, weight, prof, bv, nz0, verb=True):
+    '''
+    Calcualtes wind speeds out from the exposure time and sector movement
+    (texp should not be hardcoded, fix later)
+    
+    Args:
+        var1: Noise-subtracted variance per m (from check_power).
+        cov1: 1-frame-lag covariance per m (from check_power).
+        weight: Weight dict (holds ucoef0, ucoefslope, umm).
+        prof: Per-layer turbulence integrals.
+        bv: Star color B-V.
+        nz0: Number of layers in the restoration grid.
+        verb: Print text to the CLI (True).
+    
+    Returns:
+        (v2, jwind): the turbulence-weighted wind speed [m/s] and the
+        wind turbulence integral (ground layer excluded).
+    '''
     texp = 1e-3  # hard-coded exposure time
     delta = (var1 - cov1) * (texp ** (-2))
     delta = delta * (delta > 0)
@@ -295,6 +492,24 @@ def wind_speed(var1, cov1, weight, prof, bv, nz0, verb=True):
 
 
 def coherence(jwind, v2, see, z0, prof1):
+    '''
+    Calculates the coherence time and the isoplanatic angle.
+    
+    The coherence time (where the atmosphere stays static)
+    comes from the wind turbulence integral and wind speed. 
+    Isoplanatic angle theta0 comes from the total seeing and 
+    the effective turbulence height.
+    
+    Args:
+        jwind: Wind turbulence integral (ground layer excluded).
+        v2: Turbulence-weighted wind speed, m/s.
+        see: Total seeing, arcsec (feeds the isoplanatic angle).
+        z0: Restoration altitude grid, meters.
+        prof1: Zenith-corrected per-layer turbulence integrals.
+    
+    Returns:
+        (tau0, theta0): coherence time [ms] and isoplanatic angle.
+    '''
     # tau_0 at 500nm
     r0 = pow(6.680e13 * jwind, -0.6)
     tau0 = 310 * r0 / v2   # in [ms]

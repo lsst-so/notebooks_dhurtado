@@ -124,7 +124,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         Path to the written FITS cube ('test.fits').
     '''
     with np.load('atm.npz') as data:
-        u1        = data['u1']
+        screen        = data['screen']
         ngrid     = data['ngrid']
         pixel     = data['pixel']
         wavelen   = data['wavelen']
@@ -143,7 +143,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         nblur = math.floor(wind * texp / pixel + 0.5)
             # ^math.floor^ returns integer like int(np.floor())
         if verb: print(f'Averaging atmospheric screens, N={nblur}')
-        u1 = average_screens(u1, nblur)
+        screen = average_screens(screen, nblur)
 
     if zlow is None:
         zlow = zhigh
@@ -240,15 +240,15 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
         
         # Roll if we surpass the center of the array
         if ix > ngrid:
-            u1 = np.roll(u1, -ngrid, axis=1)
+            screen = np.roll(screen, -ngrid, axis=1)
             ix -= ngrid
         
         if iy > ngrid:
-            u1 = np.roll(u1, -ngrid, axis=0)
+            screen = np.roll(screen, -ngrid, axis=0)
             iy_float -= ngrid
             iy = math.floor(iy_float)
 
-        uampl = u1[iy : iy+nscr, ix : ix+nscr]
+        uampl = screen[iy : iy+nscr, ix : ix+nscr]
         
         if ksamp > 1:
             zoom_frac = nap / nscr
@@ -329,17 +329,17 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
 
 # Used functions ---------------------------------------------------------------------------
 
-def average_screens(u1, nblur):
+def average_screens(screen, nblur):
     '''
     Averages blur and shifted copies of the screen to mimic the
     motion blur of the atmosphere drifting during each exposure
     '''
     if nblur > 1:
-        tmp = np.copy(u1)
+        tmp = np.copy(screen)
         for k in range(1, nblur):
-            tmp += np.roll(u1, shift=k, axis=1)
-        u1 = tmp / nblur
-    return u1
+            tmp += np.roll(screen, shift=k, axis=1)
+        screen = tmp / nblur
+    return screen
 
 
 def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
