@@ -95,7 +95,8 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
             starmag=1, wind=10, jitter=0, oversamp=True, blur=True,
             display=True, verb=True):
 
-    '''Simulate a ring-image cube and write it to a FITS file.
+    '''
+    Simulate a ring-image cube and write it to a FITS file.
 
     Work-horse of the script: loads the atmosphere field from
     simatm.py, propagates the starlight through it frame by frame to

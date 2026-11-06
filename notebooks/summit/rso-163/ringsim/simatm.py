@@ -193,15 +193,15 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
 def fried_param(wavelen,turbulence_integral):
     '''
     Calculates the Fried Parameter (r0) of its respective layer.
-
+    
     Inverts the standard turbulence-integral relation
     J = 0.423 * (2*pi/lambda)^2 * r0^(-5/3)
     Reference unspecified in the original code.
-
+    
     Args:
         wavelen: Reference wavelength, meters.
         turbulence_integral: Layer turbulence integral J, m^(1/3).
-
+    
     Returns:
         The Fried parameter r0 of the layer, meters.
     '''
@@ -211,14 +211,14 @@ def fried_param(wavelen,turbulence_integral):
 def create_grid(ngrid):
     '''
     Create a grid space for the simulation.
-
+    
     Builds a (2*ngrid, 2*ngrid) map of radial distance from the
     center in pixels; the center pixel is set to 1e-3 to avoid
     division by zero.
-
+    
     Args:
         ngrid: Half-size of the grid, pixels.
-
+    
     Returns:
         2D array of radial distance from the center, pixels.
     '''
@@ -232,17 +232,17 @@ def sim_turbulence(ngrid,fact,r,rng):
     '''
     Create the 2D noise screen that
     mimics atmospheric turbulence.
-
+    
     Draws a complex Gaussian spectrum, shapes it with the
     Kolmogorov r^(-11/6) power law scaled by fact, inverse-FFTs to a
     phase screen and returns the complex field exp(i*phase).
-
+    
     Args:
         ngrid: Half-size of the grid, pixels.
         fact: Turbulence strength factor for the layer.
         r: 2D radial-distance grid, pixels (from create_grid).
         rng: numpy random Generator for the Gaussian draw.
-
+    
     Returns:
         2D complex field exp(i*phase) of the turbulent layer.
     '''
@@ -262,16 +262,16 @@ def propagate(screen,farg,x):
     '''
     Take the turbulences in its respective layers
     and project it to the lower boundry.
-
+    
     Angular-spectrum (Fresnel) propagation: multiplies the field's
     Fourier transform by the transfer function exp(-i*farg*x) and
     inverse-transforms back.
-
+    
     Args:
         screen: 2D complex field to propagate.
         farg: Fresnel phase argument grid, pi*wavelen/size^2 * r^2.
         x: Propagation distance, meters.
-
+    
     Returns:
         The propagated 2D complex field.
     '''

@@ -590,8 +590,8 @@ def check_coma(coef, nsect, mmax):
     '''
     Evaluates the shape of the ring to find coma.
     
-    Combines the mean m=1 cosine and sine coefficients into a coma
-    magnitude and orientation angle.
+    Combines the mean m=1 cosine and sine coefficients into a 
+    coma magnitude and orientation angle.
     
     Args:
         coef: (ncoef, nframes) per-frame coefficient array.
