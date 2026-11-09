@@ -4,7 +4,7 @@ Computes the statistical moments (statmom.pro) of the per-frame
 angular coefficients produced by cubecoef: variances, covariances,
 and mean aberration coefficients.
 
-Currently not compatible with CLI due to tuple return.
+Currently not compatible with CLI due to array input.
 
 Auth: A. Tokovinin
 Translated: D. Hurtado
@@ -110,6 +110,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
             'pixel': impar['asperpix'],     # detector plate scale [arcsec/pix]
             'ringradpix': impar['rad'],     # ring radius MEASURED from this cube
             'ron': impar['ron'],
+            'texp': impar['texp'],
                     },
         'profrest': {
             'mmax': mmax,

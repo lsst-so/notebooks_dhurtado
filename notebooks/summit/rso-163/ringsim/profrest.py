@@ -23,7 +23,7 @@ from scipy import optimize
 
 def main(par=None, data=None, weight=None,
          zmatfile=os.path.join('.', 'zmat.json'),
-         zen=0, bv=0, gain=0, display=True, verb=True):
+         zen=0, bv=0, gain=0, texp=1e-3 ,display=True, verb=True):
     '''
     Entry point for the profile restoration.
     
@@ -67,6 +67,8 @@ def main(par=None, data=None, weight=None,
                        help='Star color B-V (0=blue), def=0')
         p.add_argument('--gain', dest='gain', type=float, default=0,
                        help='Detector gain setting, def=0')
+        p.add_argument('--texp', dest='texp', type=float, default=1e-3,
+                       help='Exposure time, used for windspeed, def=1e-3')
         p.add_argument('--display', dest='display', type=bool, default=True,
                        help='Decides if images are displayed, boolean, def=True')
         p.add_argument('--verbose', dest='verb', type=bool, default=True,
@@ -74,15 +76,16 @@ def main(par=None, data=None, weight=None,
         
         args = p.parse_args()
         
-        data = read_json(args.datafile)
-        weight = read_json(args.weightfile)
-        par = read_json(args.parfile)
+        data     = read_json(args.datafile)
+        weight   = read_json(args.weightfile)
+        par      = read_json(args.parfile)
         zmatfile = args.zmatfile
-        zen = args.zen
-        bv = args.bv
-        gain = args.gain
-        display = args.display
-        verb = args.verb
+        zen      = args.zen
+        bv       = args.bv
+        gain     = args.gain
+        texp     = args.texp
+        display  = args.display
+        verb     = args.verb
     
     zmat = read_json(zmatfile)   # (20,5) saturation matrix, La Serena
     
@@ -135,9 +138,10 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     zen =      starpar['zen']
     bv =       starpar['BV']
     z0 =       par['profrest']['zgrid']  # grid of heights representing the turbulence profile
+    texp =     par['telescope']['texp']  # exposure time [s], from the FITS header
     
     cosz = np.cos(zen / 180 * np.pi)  # cos(z)
-    mmax = 20  # hard-coded number of terms to use
+    mmax = 15  # hard-coded number of terms to use, from original code
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
     
     # Prepare weights and interpolate to the Z0 grid, trim to mmax
@@ -180,7 +184,7 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     if verb: print(f'Seeing (sect,tot,FA): {sector_see:.3f} {scint_see:.3f} {free_see:.3f}')
     
     # Wind measurement
-    v2, jwind = wind_speed(var1, cov1, weight, prof, bv, nz0, verb)
+    v2, jwind = wind_speed(var1, cov1, weight, prof, bv, nz0, texp, verb)
     
     # Coherence time and isoplanatic angle
     tau0, theta0 = coherence(jwind, v2, scint_see, z0, prof1)
@@ -460,10 +464,9 @@ def see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seecon
     return seeing_sector(jtot2, cosz, seeconst, totvar)
 
 
-def wind_speed(var1, cov1, weight, prof, bv, nz0, verb=True):
+def wind_speed(var1, cov1, weight, prof, bv, nz0, texp=1e-3, verb=True):
     '''
     Calcualtes wind speeds out from the exposure time and sector movement
-    (texp should not be hardcoded, fix later)
     
     Args:
         var1: Noise-subtracted variance per m (from check_power).
@@ -478,7 +481,6 @@ def wind_speed(var1, cov1, weight, prof, bv, nz0, verb=True):
         (v2, jwind): the turbulence-weighted wind speed [m/s] and the
         wind turbulence integral (ground layer excluded).
     '''
-    texp = 1e-3  # hard-coded exposure time
     delta = (var1 - cov1) * (texp ** (-2))
     delta = delta * (delta > 0)
     ucoef = np.array(weight['ucoef0']) + bv * np.array(weight['ucoefslope'])

@@ -119,6 +119,8 @@ def main(argv=None):
                    help='Star magnitude, def=2')
     p.add_argument('--gain', dest='gain', type=float, default=0,
                    help='Camera gain setting, def=0')
+    p.add_argument('--texp', dest='texp', type=float, default=1e-3,
+                       help='Exposure time, def=1e-3')
     p.add_argument('--seed0', dest='seed0', type=int, default=52403,
                    help='Fixed RNG seed for reproducible runs, def=52403')
     p.add_argument('--ngrid', dest='ngrid', type=int, default=512,
@@ -149,6 +151,7 @@ def main(argv=None):
     highfrac = args.highfrac
     starmag = args.starmag
     gain = args.gain
+    texp = args.texp
     seed0 = args.seed0
     ngrid = args.ngrid
     display = bool(args.display)

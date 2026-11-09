@@ -538,7 +538,7 @@ def write_fits_cube(cube, d, effl, eps, pdist, wavelen, texp, ron, gain,
         eps: Fraction of central obscuration (header OBSC).
         pdist: Conjugation height, meters (header CONJ_H).
         wavelen: Reference wavelength, meters (header WAVELEN).
-        texp: Exposure time, seconds (header EXPOSURE, us).
+        texp: Exposure time, seconds (stored in header EXPOSURE as us).
         ron: Read-out noise, electrons (header RON).
         gain: Detector gain setting (header GAIN).
         starmag: Stellar magnitude (header MAG).
@@ -560,7 +560,7 @@ def write_fits_cube(cube, d, effl, eps, pdist, wavelen, texp, ron, gain,
     header['OBSC'] = (float(eps), 'Central obscuration (eps)')
     header['CONJ_H'] = (float(pdist), 'Conjugation height in meters')
     header['WAVELEN'] = (float(wavelen), 'Wavelength in meters')
-    header['EXPOSURE'] = (float(texp*1e6), 'Exposure time in seconds')
+    header['EXPOSURE'] = (float(texp*1e6), 'Exposure time in microseconds (texp*1e6)')
     header['RON'] = (float(ron), 'Read out noise')
     header['GAIN'] = (float(gain), 'Detector gain (cube2.py reads as float)')
     header['MAG'] = (float(starmag), 'Stellar magnitude')

@@ -102,6 +102,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     eps      = param['eps']
     asperpix = param['asperpix']
     ron      = param['ron']
+    texp     = param['texp']
     
     nz, nx, ny = cube.shape
     if verb: print(f'Sizes {nx, ny, nz}')
@@ -239,7 +240,8 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         'pdist':    pdist,
         'ron':      ron,
         'wavelen':  wavelen,
-        'pixel':    pixel
+        'pixel':    pixel,
+        'texp':     texp
             }
     
     if verb: print(f'Cube processed! Parameters saved')
@@ -290,6 +292,7 @@ def read_cubefile(cubefile):
         'eps':      float(hdr['OBSC']),
         'asperpix': float(hdr['PIXSCALE']),
         'ron':      float(hdr['RON']),
+        'texp':     float(hdr['EXPOSURE']) * 1e-6   # µs -> s
             }
     return cube, param
 
