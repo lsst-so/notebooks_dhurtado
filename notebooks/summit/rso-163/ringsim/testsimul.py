@@ -24,7 +24,7 @@ Compiled: D. Hurtado
 import argparse
 import csv
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timezone
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -211,26 +211,8 @@ def main(argv=None):
     # Radius rms from statmom (used as radvar = rrms**2 - rnoise1 in the report cell)
     rrms = np.sqrt(moments['rvar'])
 
-    # Plot angular power spectrum, covariance and noise floor
-    if display:
-        arg = np.arange(len(powspec))
-        plt.figure(figsize=(7, 5))
-        plt.semilogy(arg, np.maximum(np.array(moments['var'], float), 1e-12), 'k-o', label='power')
-        plt.semilogy(arg, np.maximum(covspec, 1e-12), 'r--', label='covariance')
-        plt.axhline(max(anoise, 1e-12), ls=':', color='b', label='noise')
-        plt.ylim(10e-6)
-        plt.xlim(0,20)
-        plt.xticks(np.arange(0, 21, step=1))
-        plt.xlabel('m')
-        plt.ylabel('Power')
-        plt.title('Angular power spectrum')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
-        #plt.show()
-        plt.close()
-    
-    
+    # Angular power spectrum / covariance / noise are now plotted together with
+    # the restoration fit (powcorr, powmod) inside profrest -> power_spectrum.jpg.
     profile = profrest.main(par, data, weight, display=display, verb=verb) #, zmat)
     
     prof = np.array(profile['prof'], float) / 1e13
@@ -263,7 +245,7 @@ def main(argv=None):
     if verb: print(f'Input seeing and J: {seeing}, {tint * 1e13}')
     if verb: print(f'Altitudes: {zlow} -> {zhigh}')
     
-    time = datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    time = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + 'Z'
     
     # Simulation "truth" inputs (not carried in the pipeline dicts) so the
     # restored values can be compared against what was fed in.

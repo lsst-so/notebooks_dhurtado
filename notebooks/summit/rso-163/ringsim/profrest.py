@@ -141,7 +141,7 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     texp =     par['telescope']['texp']  # exposure time [s], from the FITS header
     
     cosz = np.cos(zen / 180 * np.pi)  # cos(z)
-    mmax = 15  # hard-coded number of terms to use, from original code
+    mmax = 20  # hard-coded number of terms to use, from original code
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
     
     # Prepare weights and interpolate to the Z0 grid, trim to mmax
@@ -161,18 +161,29 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     prof, erms, varmod = solve_profile(wt1, varz, var, mmax, verb)
     
     if display:
-        arg = np.arange(mmax) + 1                         # findgen(mmax)+1
-        plt.errorbar(arg, varz, yerr=anoise, fmt='s', capsize=3,
-                     label='powcorr')                     # plot, /ylog, psym=6 (squares)
-        plt.semilogy(arg, varmod, 'k--', label='powmod')  # oplot, li=2 (dashed)
+        varr = np.array(var, float)
+        covr = np.array(cov, float)
+        mfull = np.arange(len(varr))                      # m = 0..mcoef-1 (raw moments)
+        marg = np.arange(mmax) + 1                        # m = 1..mmax (corrected/modeled)
+        plt.figure(figsize=(8, 5))
+        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='k', marker='o', ls='-',
+                     label='Power (var)')
+        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:fire engine red', marker='v', ls='-',
+                     label='Covariance (cov)')
+        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label='noise (anoise)')
+        plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:neon purple',
+                     label='Powcorr (varz)')          # noise/saturation-corrected power
+        plt.semilogy(marg, varmod, color='xkcd:neon purple', ls='--', label='Powmod (varmod)')  # model fit
         plt.yscale('log')                                 # errorbar does not set log y itself
-        plt.xlabel('m', fontsize=15)                      # !p.charsize = 1.5
-        plt.ylabel('Power', fontsize=15)
-        plt.xlim(arg[0], arg[-1])                         # xs=1 (exact x-range)
-        plt.ylim(1e-4,1e-2)
+        plt.xlabel('m', fontsize=13)
+        plt.ylabel('Power', fontsize=13)
+        plt.xlim(0, mmax)
+        plt.xticks(np.arange(0, mmax + 1))
+        plt.ylim(1e-6, 1e-2)
+        plt.title('Angular spectrum: moments, noise and restoration fit')
         plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join('images', 'power_spectrum.jpg'), dpi=300, format='jpg')
+        plt.grid(True, which='both', alpha=0.3)
+        plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
         plt.close()  # release the figure so repeated runs don't accumulate figures
     

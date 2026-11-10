@@ -88,10 +88,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     
     # Mean coefficients for aberrations (mean radii and m=1,2,3 cos/sine terms)
     mcoef = aberration_coef(coef, meancoef, nsect, mmax)
-    
-    if display:
-        save_image(power, cov, mmax)
-    
+
     # Assemble output dictionaries (same structure as cube2.py)
     moments = {
         'var': power.tolist(),
@@ -214,29 +211,6 @@ def aberration_coef(coef, meancoef, nsect, mmax):
     mcoef[nsect + 3 : nsect + 6] = meancoef[mmax + 2 : mmax + 5]
     return mcoef
 
-
-def save_image(power, cov, mmax):
-    '''
-    Saves the angular mode spectrum plot into the images folder.
-    
-    Args:
-        power: Per-m angular power spectrum.
-        cov: Per-m covariance.
-        mmax: Max angular order (sets the x-axis range).
-    '''
-    arg = np.arange(mmax + 1)
-    
-    plt.figure(figsize=(7, 5))
-    plt.semilogy(arg, power, 'k-o', label='Power Spectrum')
-    plt.semilogy(arg, cov, 'r--', label='Covariance')
-    plt.xlabel('m')
-    plt.ylabel('Power')
-    plt.title('Angular Mode Spectrum')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(os.path.join('images', 'angular_spectrum.jpg'), dpi=300, format='jpg')
-    #plt.show()
-    plt.close()
 
 
 if __name__ == '__main__':

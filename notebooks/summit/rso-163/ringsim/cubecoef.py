@@ -22,6 +22,7 @@ import matplotlib.colors as colors
 import matplotlib.animation as animation
 import numpy as np
 import os
+import seaborn as sb
 from astropy.io import fits
 
 
@@ -248,19 +249,21 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     
     if display:
         save_image(imav_final, 'Average aligned cube', 'cube_average.jpg')
-        
-        plt.figure()
-        plt.plot(xcent, ycent, '+', label='Centroid (X, Y) [pix]',)
-        #plt.plot(ycent * pixel, linestyle='--', label='Y-drift vs Frame')
-        plt.axis('equal')
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.title('Centroid Position & Drift [pix]')
-        #plt.legend()
-        plt.grid(True)
-        plt.savefig(os.path.join('images', 'centroid_drift.jpg'), dpi=300, format='jpg')
+
+        im = sb.jointplot(x=xcent, y=ycent, marginal_kws=dict(bins=25))
+        im.set_axis_labels('X center [pix]', 'Y center [pix]')
+        im.ax_joint.grid(True)
+        cx, cy = np.mean(xcent), np.mean(ycent)
+        half = 0.5 * max(np.ptp(xcent), np.ptp(ycent)) * 1.1
+        im.ax_joint.set_xlim(cx - half, cx + half)
+        im.ax_joint.set_ylim(cy - half, cy + half)
+        im.ax_joint.axhline(y=0, color='red', linestyle='--', linewidth=2)  # axhline/axvline are Axes
+        im.ax_joint.axvline(x=0, color='red', linestyle='--', linewidth=2)  # methods, not JointGrid's
+        im.figure.suptitle('Centroid Position & Drift [pix]')
+        im.figure.subplots_adjust(top=0.95)
+        im.savefig(os.path.join('images', 'centroid_drift.jpg'), dpi=300)
         #plt.show()
-        plt.close()
+        plt.close(im.figure)
     
     return impar, coef
 

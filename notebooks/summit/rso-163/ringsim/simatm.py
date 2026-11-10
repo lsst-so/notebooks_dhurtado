@@ -176,8 +176,9 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     
     if display:
         plt.figure(figsize=(7, 7))
-        plt.imshow(intensity, cmap='GnBu', origin='lower', norm=colors.LogNorm())
+        im = plt.imshow(intensity, cmap='PuOr', origin='lower', norm=colors.LogNorm())
         plt.title('Simulated atmosphere')
+        plt.colorbar(im, location='right', shrink=0.7)
         plt.tight_layout()
         os.makedirs('images', exist_ok=True)   # store output images in ./images
         plt.savefig(os.path.join('images', 'atmsim.jpg'), dpi=300, format='jpg')
