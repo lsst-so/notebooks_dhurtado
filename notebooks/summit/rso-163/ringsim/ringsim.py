@@ -230,7 +230,7 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     if display:
         writer = mpl.animation.PillowWriter(fps=5)
         tmp_fig = plt.figure()
-        writer.setup(tmp_fig, 'ringsim.gif', dpi=100)
+        writer.setup(tmp_fig, 'images/ringsim.gif', dpi=100)
         plt.close(tmp_fig)
     
     # Main Loop

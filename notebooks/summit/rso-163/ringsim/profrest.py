@@ -96,7 +96,7 @@ def main(par=None, data=None, weight=None,
     data['starpar'] = {'zen': zen, 'BV': bv}    # simulated at zenith
     data['cubepar'] = {'gain': gain}            # detector gain from the sim1.par cell
     
-    profile = restore(par, data, weight, zmat, display, verb)
+    profile = restore_profile(par, data, weight, zmat, display, verb)
     
     prof = np.array(profile['prof'], float) / 1e13
     wind = float(profile['wind'])
@@ -106,7 +106,7 @@ def main(par=None, data=None, weight=None,
     return profile
 
 
-def restore(par, data, weight, zmat, display=True, verb=True):
+def restore_profile(par, data, weight, zmat, display=True, verb=True):
     '''
     Main workhorse of the restoration, out from the
     cube coefficients and weights (calculated earlier or not)
@@ -141,12 +141,12 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     texp =     par['telescope']['texp']  # exposure time [s], from the FITS header
     
     cosz = np.cos(zen / 180 * np.pi)  # cos(z)
-    mmax = 20  # hard-coded number of terms to use, from original code
+    mmax = 17  # hard-coded number of terms to use, from original code
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
     
     # Prepare weights and interpolate to the Z0 grid, trim to mmax
-    z, nm, wt = prepare_weights(weight, bv)
-    wt1, wtsect, nz0 = interpolate(z, wt, z0, cosz, mmax)
+    z, nm, wt = prepare_layers_weights(weight, bv)
+    wt1, wtsect, nz0 = interpolate_weights_to_altitude(z, wt, z0, cosz, mmax)
     
     # Check that moments and weights have the same number of coefficients
     mcoef = len(var)  # 21 for mmax=20
@@ -165,23 +165,33 @@ def restore(par, data, weight, zmat, display=True, verb=True):
         covr = np.array(cov, float)
         mfull = np.arange(len(varr))                      # m = 0..mcoef-1 (raw moments)
         marg = np.arange(mmax) + 1                        # m = 1..mmax (corrected/modeled)
+        
         plt.figure(figsize=(8, 5))
-        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='k', marker='o', ls='-',
-                     label='Power (var)')
-        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:fire engine red', marker='v', ls='-',
-                     label='Covariance (cov)')
-        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label='noise (anoise)')
-        plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:neon purple',
-                     label='Powcorr (varz)')          # noise/saturation-corrected power
-        plt.semilogy(marg, varmod, color='xkcd:neon purple', ls='--', label='Powmod (varmod)')  # model fit
-        plt.yscale('log')                                 # errorbar does not set log y itself
+        m_hi, m_mid = 5, 11                               # high|mid and mid|low splits
+        plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.3, label='High layer (low m)')
+        plt.axvspan(m_hi, m_mid, color='xkcd:pale green', alpha=0.3, label='Mid layer')
+        plt.axvspan(m_mid, mmax, color='xkcd:pale yellow', alpha=0.3, label='Low layer (high m)')
+        # Shade the power-covariance gap: var - cov is the per-mode wind signal
+        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12),
+                         color='xkcd:fire engine red', alpha=0.12, label='var - cov (wind)')
+        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='k', marker='o',
+                     ls='-',label='Power (var)')
+        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:fire engine red', marker='v',
+                     ls='-', label='Covariance (cov)')
+        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', 
+                     ls=':', label='Noise (anoise)')
+        plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:neon purple', 
+                     alpha=0.5, label='Powcorr (varz)') # noise/saturation-corrected power
+        plt.semilogy(marg, varmod, ls='--', color='xkcd:neon purple',
+                     alpha=0.3, label='Powmod (varmod)')  # model fit
+        plt.yscale('log')
         plt.xlabel('m', fontsize=13)
         plt.ylabel('Power', fontsize=13)
         plt.xlim(0, mmax)
         plt.xticks(np.arange(0, mmax + 1))
         plt.ylim(1e-6, 1e-2)
         plt.title('Angular spectrum: moments, noise and restoration fit')
-        plt.legend()
+        plt.legend(loc='lower left')
         plt.grid(True, which='both', alpha=0.3)
         plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
         #plt.show()
@@ -192,7 +202,7 @@ def restore(par, data, weight, zmat, display=True, verb=True):
     
     # Seeing from the radius variance (sector motion)
     sector_see = see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seeconst)
-    if verb: print(f'Seeing (sect,tot,FA): {sector_see:.3f} {scint_see:.3f} {free_see:.3f}')
+    if verb: print(f'Seeing (sect,scint,free): {sector_see:.3f} {scint_see:.3f} {free_see:.3f}')
     
     # Wind measurement
     v2, jwind = wind_speed(var1, cov1, weight, prof, bv, nz0, texp, verb)
@@ -238,7 +248,7 @@ def read_json(filename):
         return
 
 
-def prepare_weights(weight, bv):
+def prepare_layers_weights(weight, bv):
     '''
     Takes the calculated weights for each
     layer and prepares them for processing.
@@ -262,7 +272,7 @@ def prepare_weights(weight, bv):
     return z, nm, wt
 
 
-def interpolate(z, wt, z0, cosz, mmax):
+def interpolate_weights_to_altitude(z, wt, z0, cosz, mmax):
     '''
     Interpolates the weights onto the restoration altitude grid.
     
@@ -380,7 +390,7 @@ def solve_profile(wt1, varz, var, mmax, verb=True):
     prof, resvar = optimize.nnls(a2, varz2)  # turbulence intergals in  [m^1/3] in z0 layers
     
     varmod = np.dot(a2, prof) / varwt
-    erms = np.std(1. - varmod / varz)
+    erms = np.std(1 - varmod / varz)
     if verb: print(f'RMS residual: {erms:.3f}')
     return prof, erms, varmod
 
@@ -477,7 +487,8 @@ def see_radius(data, par, weight, prof, wtsect, cosz, totvar, rnoise, bv, seecon
 
 def wind_speed(var1, cov1, weight, prof, bv, nz0, texp=1e-3, verb=True):
     '''
-    Calcualtes wind speeds out from the exposure time and sector movement
+    Calcualtes wind speeds out from the exposure time, sector movement
+    and weights covariance
     
     Args:
         var1: Noise-subtracted variance per m (from check_power).
@@ -486,6 +497,7 @@ def wind_speed(var1, cov1, weight, prof, bv, nz0, texp=1e-3, verb=True):
         prof: Per-layer turbulence integrals.
         bv: Star color B-V.
         nz0: Number of layers in the restoration grid.
+        texp: Exposure time
         verb: Print text to the CLI (True).
     
     Returns:

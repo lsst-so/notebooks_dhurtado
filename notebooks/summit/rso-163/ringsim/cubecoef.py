@@ -165,7 +165,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
     if display:
         writer = mpl.animation.PillowWriter(fps=60)
         tmp_fig = plt.figure()
-        writer.setup(tmp_fig, 'cube_centroid.gif', dpi=100)
+        writer.setup(tmp_fig, 'images/cube_centroid.gif', dpi=100)
         plt.close(tmp_fig)
     
     for i in range(nz):
