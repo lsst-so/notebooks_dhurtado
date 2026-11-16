@@ -87,7 +87,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     power, cov, meancoef = angular_moments(coef, nsect, mmax, nz)
     
     # Mean coefficients for aberrations (mean radii and m=1,2,3 cos/sine terms)
-    mcoef = aberration_coef(coef, meancoef, nsect, mmax)
+    mcoef = calculate_aberration_coefficients(coef, meancoef, nsect, mmax)
 
     # Assemble output dictionaries (same structure as cube2.py)
     moments = {
@@ -191,7 +191,7 @@ def angular_moments(coef, nsect, mmax, nz):
     return power, cov, meancoef
 
 
-def aberration_coef(coef, meancoef, nsect, mmax):
+def calculate_aberration_coefficients(coef, meancoef, nsect, mmax):
     '''
     Assembles the mean aberration coefficients.
     

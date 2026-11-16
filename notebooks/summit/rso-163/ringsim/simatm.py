@@ -103,8 +103,8 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     tinthigh = tint0 * fhigh            # High layer integral
     tintlow = tint0 * (1 - fhigh)       # Low layer integral
     
-    r0high = fried_param(wavelen,tinthigh) # Fried param for high layer
-    r0low =  fried_param(wavelen,tintlow)  # Fried param for low layer
+    r0high = find_fried_parameter(wavelen,tinthigh) # Fried param for high layer
+    r0low =  find_fried_parameter(wavelen,tintlow )  # Fried param for low layer
     
     if verb: print(f'Grid size (meters): {size} \n Fried parameters (meters) [low, high]: [{r0low, r0high}]')
     if verb: print(f'Integrals (meters^1/3) [low, high]: [{tintlow, tinthigh}] \n Altitudes (meters) {zlow, zhigh}')
@@ -135,23 +135,23 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     # Simulate turbulence in high layer
     if fhigh > 0:
         if verb: print('Simulating high layer')
-        screen = sim_turbulence(ngrid,facthigh,r,rng)
+        screen = simulate_turbulence(ngrid,facthigh,r,rng)
         
         # Propagate using Angular spectrum method (Zhigh -> Zlow)
         if (zhigh - zlow) > 0:
             if verb: print('Propagating to low layer')
             dz = zhigh - zlow
-            screen = propagate(screen,farg,dz)
+            screen = propagate_to_layer(screen,farg,dz)
     else:
         screen = np.ones((ngrid*2, ngrid*2), dtype=np.complex128)
     
     # Simulate Low layer
     if verb: print('Simulating low layer')
-    screen *= sim_turbulence(ngrid,factlow,r,rng)
+    screen *= simulate_turbulence(ngrid,factlow,r,rng)
     
     # Propagate to ground (Zlow -> 0 km)
     if verb: print('Propagating to ground')
-    screen = propagate(screen,farg,zlow)
+    screen = propagate_to_layer(screen,farg,zlow)
     
     np.savez(
         'atm.npz',
@@ -175,10 +175,14 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     if verb: print(f'Rytov variance, scintillation: {rytov}, {scint}')
     
     if display:
+        # Robust colorbar limits (1st/99th pct) so bright/dark speckles don't wash out the scale
+        vmin = max(np.percentile(intensity, 1), 1e-6)   # LogNorm needs vmin > 0
+        vmax = np.percentile(intensity, 99)
         plt.figure(figsize=(7, 7))
-        im = plt.imshow(intensity, cmap='PuOr', origin='lower', norm=colors.LogNorm())
+        im = plt.imshow(intensity, cmap='PuOr', origin='lower',
+                        norm=colors.LogNorm(vmin=vmin, vmax=vmax))
         plt.title('Simulated atmosphere')
-        plt.colorbar(im, location='right', shrink=0.7)
+        plt.colorbar(im, location='right', shrink=0.7, extend='both')  # arrows flag clipped values
         plt.tight_layout()
         os.makedirs('images', exist_ok=True)   # store output images in ./images
         plt.savefig(os.path.join('images', 'atmsim.jpg'), dpi=300, format='jpg')
@@ -191,7 +195,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
 
 # Used functions ---------------------------------------------------------------------------
 
-def fried_param(wavelen,turbulence_integral):
+def find_fried_parameter(wavelen,turbulence_integral):
     '''
     Calculates the Fried Parameter (r0) of its respective layer.
     
@@ -229,7 +233,7 @@ def create_grid(ngrid):
     return r
 
 
-def sim_turbulence(ngrid,fact,r,rng):
+def simulate_turbulence(ngrid,fact,r,rng):
     '''
     Create the 2D noise screen that
     mimics atmospheric turbulence.
@@ -259,7 +263,7 @@ def sim_turbulence(ngrid,fact,r,rng):
     return screen
 
     
-def propagate(screen,farg,x):
+def propagate_to_layer(screen,farg,x):
     '''
     Take the turbulences in its respective layers
     and project it to the lower boundry.

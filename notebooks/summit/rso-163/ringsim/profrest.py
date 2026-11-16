@@ -168,22 +168,17 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
         
         plt.figure(figsize=(8, 5))
         m_hi, m_mid = 5, 11                               # high|mid and mid|low splits
+        
         plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.3, label='High layer (low m)')
-        plt.axvspan(m_hi, m_mid, color='xkcd:pale green', alpha=0.3, label='Mid layer')
         plt.axvspan(m_mid, mmax, color='xkcd:pale yellow', alpha=0.3, label='Low layer (high m)')
-        # Shade the power-covariance gap: var - cov is the per-mode wind signal
-        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12),
-                         color='xkcd:fire engine red', alpha=0.12, label='var - cov (wind)')
-        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='k', marker='o',
-                     ls='-',label='Power (var)')
-        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:fire engine red', marker='v',
-                     ls='-', label='Covariance (cov)')
-        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', 
-                     ls=':', label='Noise (anoise)')
-        plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:neon purple', 
-                     alpha=0.5, label='Powcorr (varz)') # noise/saturation-corrected power
-        plt.semilogy(marg, varmod, ls='--', color='xkcd:neon purple',
-                     alpha=0.3, label='Powmod (varmod)')  # model fit
+        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12), color='xkcd:fire engine red', alpha=0.12, label='var - cov (wind)')
+        
+        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='xkcd:black', marker='s', ls='-', label='Power (var)')
+        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:vermillion', marker='o',ls='-', label='Covariance (cov)')
+        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label='Noise (anoise)')
+        #plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:black', alpha=1, label='Noise bias') # noise/saturation-corrected power
+        #plt.semilogy(marg, varmod, ls='--', color='xkcd:neon purple', alpha=0.3, label='Powmod (varmod)')  # model fit
+        
         plt.yscale('log')
         plt.xlabel('m', fontsize=13)
         plt.ylabel('Power', fontsize=13)
@@ -208,7 +203,7 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
     v2, jwind = wind_speed(var1, cov1, weight, prof, bv, nz0, texp, verb)
     
     # Coherence time and isoplanatic angle
-    tau0, theta0 = coherence(jwind, v2, scint_see, z0, prof1)
+    tau0, theta0 = find_coherence_time(jwind, v2, scint_see, z0, prof1)
     
     # Output dictionary
     profile = {
@@ -516,7 +511,7 @@ def wind_speed(var1, cov1, weight, prof, bv, nz0, texp=1e-3, verb=True):
     return v2, jwind
 
 
-def coherence(jwind, v2, see, z0, prof1):
+def find_coherence_time(jwind, v2, see, z0, prof1):
     '''
     Calculates the coherence time and the isoplanatic angle.
     

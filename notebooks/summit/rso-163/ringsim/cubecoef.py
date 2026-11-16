@@ -131,7 +131,7 @@ def cubecoef(cubefile='test.fits', mmax=20, nsect=8, drad=1.5,
         raise ValueError(f'Empty cube! Please check and restart simulation')
     
     # General matrix of masks
-    maskmat, ncoef, ringmask = mask_matrix(nsect, mmax, nx, ny, r, phi, rwt, fwt, radpix, rwidth, drad, verb)
+    maskmat, ncoef, ringmask = create_mask_matrix(nsect, mmax, nx, ny, r, phi, rwt, fwt, radpix, rwidth, drad, verb)
     
     # Optional control plot before main loop
     if display:
@@ -403,7 +403,7 @@ def ring_params(cube, nstart, x, y, r, rwt, fwt, xsect, ysect, nx,
     return xc, yc, radpix, rwidth, background, imgcent
 
 
-def mask_matrix(nsect, mmax, nx, ny, r, phi, rwt, fwt, radpix, rwidth, drad, verb=True):
+def create_mask_matrix(nsect, mmax, nx, ny, r, phi, rwt, fwt, radpix, rwidth, drad, verb=True):
     '''
     Builds the projection matrix of masks used to measure the ring
     coefficients in each frame: the per-sector radius/flux masks plus

@@ -101,8 +101,8 @@ def main(argv=None):
                    help='Number of sectors for radius calculation, def=8')
     p.add_argument('--interpol', dest='interpol', type=int, default=1,
                    help='Use sub-pixel shifts, def=1')
-    p.add_argument('--ron', dest='ron', type=float, default=0,
-                   help='Readout noise, electrons, def=0')
+    p.add_argument('--ron', dest='ron', type=float, default=1,
+                   help='Readout noise, electrons, def=1')
 
     # Atmosphere / observation
     p.add_argument('--seeing', dest='seeing', type=float, default=1,
@@ -222,8 +222,8 @@ def main(argv=None):
     see = (jtot / 6.826e-13) ** 0.6
     jfree = np.sum(prof[2:nz])
     fsee = (jfree / 6.8e-13) ** 0.6
-    if verb: print(f'See, fsee:{see}{fsee}')
-    if verb: print(f'Scint: {totvar}')
+    if verb: print(f'Seeing [see, fsee]: [{see},{fsee}]')
+    if verb: print(f'Intensity variation: {totvar}')
     
     # Formatted array outputs matching IDL's (A12, 10F7.2) specifier
     z_str = ''.join([f'{v:2.2f}' for v in (z0 * 1e-3)[:10]])
