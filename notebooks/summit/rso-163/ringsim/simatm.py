@@ -184,6 +184,8 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
         plt.title('Simulated atmosphere')
         plt.colorbar(im, location='right', shrink=0.7, extend='both')  # arrows flag clipped values
         plt.tight_layout()
+        plt.ylim(0,256)
+        plt.xlim(0,256)
         os.makedirs('images', exist_ok=True)   # store output images in ./images
         plt.savefig(os.path.join('images', 'atmsim.jpg'), dpi=300, format='jpg')
         #plt.show()

@@ -101,7 +101,7 @@ def main(argv=None):
                    help='Number of sectors for radius calculation, def=8')
     p.add_argument('--interpol', dest='interpol', type=int, default=1,
                    help='Use sub-pixel shifts, def=1')
-    p.add_argument('--ron', dest='ron', type=float, default=1,
+    p.add_argument('--ron', dest='ron', type=float, default=3.5,
                    help='Readout noise, electrons, def=1')
 
     # Atmosphere / observation

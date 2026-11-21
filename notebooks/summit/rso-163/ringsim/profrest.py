@@ -169,13 +169,13 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
         plt.figure(figsize=(8, 5))
         m_hi, m_mid = 5, 11                               # high|mid and mid|low splits
         
-        plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.3, label='High layer (low m)')
-        plt.axvspan(m_mid, mmax, color='xkcd:pale yellow', alpha=0.3, label='Low layer (high m)')
-        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12), color='xkcd:fire engine red', alpha=0.12, label='var - cov (wind)')
-        
-        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='xkcd:black', marker='s', ls='-', label='Power (var)')
-        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:vermillion', marker='o',ls='-', label='Covariance (cov)')
-        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label='Noise (anoise)')
+        plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.3, label=r'High layer (low $\mathtt{m}$)')
+        plt.axvspan(m_mid, mmax, color='xkcd:pale yellow', alpha=0.3, label=r'Low layer (high $\mathtt{m}$)')
+        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12), color='xkcd:fire engine red', alpha=0.12, label=r'$\mathtt{var-cov}$ (wind)')
+
+        plt.semilogy(mfull, np.maximum(varr, 1e-12), color='xkcd:black', marker='s', ls='-', label=r'Power ($\mathtt{var}$)')
+        plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:vermillion', marker='o',ls='-', label=r'Covariance ($\mathtt{cov}$)')
+        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label=r'Noise ($\mathtt{anoise}$)')
         #plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:black', alpha=1, label='Noise bias') # noise/saturation-corrected power
         #plt.semilogy(marg, varmod, ls='--', color='xkcd:neon purple', alpha=0.3, label='Powmod (varmod)')  # model fit
         
@@ -185,7 +185,7 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
         plt.xlim(0, mmax)
         plt.xticks(np.arange(0, mmax + 1))
         plt.ylim(1e-6, 1e-2)
-        plt.title('Angular spectrum: moments, noise and restoration fit')
+        plt.title('Angular spectrum') 
         plt.legend(loc='lower left')
         plt.grid(True, which='both', alpha=0.3)
         plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
