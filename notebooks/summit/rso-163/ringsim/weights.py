@@ -42,8 +42,6 @@ def main(par=None, verb=True):
     
     weight = computeweight(par, verb)
     if verb: print('\n Weights computed and saved to weights.json')
-    if verb: print('  z-layers = {},  coeffs/layer = {}'.format(len(weight['z']), len(weight['wt0'][0])))
-    if verb: print('  ring radius [pix] = {:.3f},  pdist [m] = {:.2f}'.format(weight['ringrad'], weight['pdist']))
     
     return weight
     
@@ -57,6 +55,8 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
     masks and the Fresnel propagation filters, then loops over
     angular order m and layer z to compute the scintillation
     response weights and the U-functions used for wind.
+
+    ToDo: Re-write hardcoded parameters
     
     Args:
         z: Propagation-distance grid, meters.
@@ -94,7 +94,7 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
     size, asperpix, fstep, r, phi, pupil, ninside, radpix = weight_grid(d, eps, lam0, ngrid, ksize)
     
     # Define conic wavefront at the pupil (optionally with static Zernikes)
-    uampl = conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil)
+    uampl = define_conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil)
     
     # Compute nominal ring image at the focal plane
     imh = np.fft.fftshift(np.fft.fft2(np.fft.fftshift(uampl)))
@@ -102,7 +102,7 @@ def aweight(z,mmax,d,eps,pdist,wav,sp,drho=1.5,pixel=0,zn=[],zrad=[],nsect=8,ver
     
     # Compute the masks
     (filtap, ringmask, rwt, flux, rflux, 
-     ringrad, ringradpix2, spturb, spufunc, utmp) = ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0,
+     ringrad, ringradpix2, spturb, spufunc, utmp) = compute_ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0,
                                                               d, eps, drho, fstep, nsect, ngrid, ksize, verb)
     
     nm = mmax + 1  # number of angular coefficients
@@ -273,7 +273,7 @@ def weight_grid(d, eps, lam0, ngrid, ksize):
     return size, asperpix, fstep, r, phi, pupil, ninside, radpix
 
 
-def conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil):
+def define_conic_wavefront(r, phi, radpix, lam0, d, pdist, zn, zrad, pupil):
     '''
     Builds the defocused pupil (conic wavefront) 
     complex amplitude for the given conjugation distance, 
@@ -327,7 +327,7 @@ def zernike(tmp, zn, zrad, r, radpix, phi):
     return tmp
 
 
-def ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0, d, eps, drho,
+def compute_ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0, d, eps, drho,
               fstep, nsect, ngrid, ksize, verb=True):
     '''
     Builds the ring/sector masks and the turbulence spectra
@@ -363,7 +363,6 @@ def ring_mask(imh, uampl, r, phi, ninside, asperpix, pixel, lam0, d, eps, drho,
     # Compute the masks
     ringradpix2 = np.sum(imh * r) / ninside # true ring radius in fine pixels
     ringrad = ringradpix2 * asperpix / pixel  # ring radius in CCD pixels
-    if verb: print ('Ring radius [pix]: ',ringrad)
     drhopix = drho * lam0 / d / (1 - eps) * 2 * 206265 / asperpix # ring half-width [pix]
     filtap = (r >= ringradpix2 - drhopix) * (r <= ringradpix2 + drhopix) # radial part of image mask
     
