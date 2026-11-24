@@ -431,7 +431,6 @@ def create_mask_matrix(nsect, mmax, nx, ny, r, phi, rwt, fwt, radpix, rwidth, dr
     drhopix = drad * rwidth
     ringmask = (r >= (radpix - drhopix)) & (r <= (radpix + drhopix))
     nring = np.count_nonzero(ringmask)
-    if verb: print(f'nring {nring}')
     
     ncoef = 2 * nsect + 2 * (mmax + 1)
     maskmat = np.zeros((ncoef, nx * ny), dtype=np.float64)

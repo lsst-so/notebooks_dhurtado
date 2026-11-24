@@ -222,7 +222,6 @@ def main(argv=None):
     see = (jtot / 6.826e-13) ** 0.6
     jfree = np.sum(prof[2:nz])
     fsee = (jfree / 6.8e-13) ** 0.6
-    if verb: print(f'Seeing [see, fsee]: [{see},{fsee}]')
     if verb: print(f'Intensity variation: {totvar}')
     
     # Formatted array outputs matching IDL's (A12, 10F7.2) specifier

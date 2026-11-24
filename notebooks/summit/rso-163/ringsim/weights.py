@@ -199,11 +199,11 @@ def computeweight(par, verb=True):  # actual weight calculation
     if verb: print('Computing weight for B-V=0...')
     wt0, ufunc0, ringrad = aweight(z,mmax,d,eps,pdist,wav,sp0,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
     hslope = pdist * ringrad
-    if verb: print(f'Ring radius and H*rad [m.pix]: {ringrad}, {hslope}')
     # Weight for B-V=1
     if verb: print('Computing weight for B-V=1...')
     wt1, ufunc1, ringrad1 = aweight(z,mmax,d,eps,pdist,wav,sp1,1.5,pixscale,zn,zrad,nsect,verb) # arrays of [nz,mmax+1] dimension
-    
+    if verb: print(f'Ring radius found: {ringrad:.2f}')
+        
     mm = [1,3,6,7,8,9] # selected frequencies for wind measurement
     ucoef0, resp0 = getucoef(ufunc0,z,mm)
     ucoef1, resp1 = getucoef(ufunc1,z,mm)

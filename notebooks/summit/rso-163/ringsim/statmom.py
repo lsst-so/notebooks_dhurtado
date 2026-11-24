@@ -55,6 +55,8 @@ def main():
 def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     '''
     Computes the statistical moments of the per-frame coefficients.
+    In other words, calculates the variances and covariances of
+    the coefficients calculated from the cube across it.
     
     From the cubecoef output, builds the differential radius
     variance (DIMM-like), the angular power spectrum and covariance,
@@ -76,7 +78,6 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
     # Calculation of statistical moments
     ncoef, nz = coef.shape # Check shape
     expected_ncoef = 2 * nsect + 2 * mmax + 2
-    if verb: print(f'ncoef {ncoef} expect: {expected_ncoef}')
     if ncoef != expected_ncoef:
         raise ValueError(f'Parameters do not match (ncoef={expected_ncoef}, got {ncoef})')
     
@@ -126,11 +127,7 @@ def statmom(impar, coef, mmax=20, nsect=8, display=True, verb=True):
         'moments': moments,
             }
     
-    if verb: print('Par file created with',
-          'D:', par['telescope']['D'], 'eps:', par['telescope']['eps'],
-          'pdist:', par['telescope']['pdist'],
-          '\npixel (asperpix):', par['telescope']['pixel'],
-          'ringradpix:', par['telescope']['ringradpix'], 'ron:', par['telescope']['ron'])
+    if verb: print('Par file created')
     
     return par, data
 

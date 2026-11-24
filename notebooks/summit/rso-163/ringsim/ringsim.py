@@ -103,6 +103,9 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     form the defocused ring images, adds detector noise and saves the
     resulting cube to a FITS file (returned as a path).
 
+    ToDo: Revisit how the FFTs are done for the screen
+    ToDo: Revisit when camera is characterized
+
     Args:
         d: Diameter of telescope M1, meters.
         effl: Effective focal length, meters.
@@ -143,14 +146,14 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     if blur:
         nblur = math.floor(wind * texp / pixel + 0.5)
             # ^math.floor^ returns integer like int(np.floor())
-        if verb: print(f'Averaging atmospheric screens, N={nblur}')
+        if verb: print(f'Averaging atmospheric screens')
         screen = average_screens(screen, nblur)
 
     if zlow is None:
         zlow = zhigh
 
-    geometry = compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind,
-                           texp, tacc, d, eps, pdist, oversamp, verb)
+    geometry = compute_ring_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind,
+                                    texp, tacc, d, eps, pdist, oversamp, verb)
     size       = geometry['size']
     alpha      = geometry['alpha']
     seeing     = geometry['seeing']
@@ -166,34 +169,29 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     if verb: print(f'Loaded {data}')
     
-    if verb: print('starmag, ron, d, eps, pdist, wind, size, ngrid')
-    if verb: print(starmag, ron, d, eps, pdist, wind, size, ngrid)
-    
-    if verb: print(f'Seeing (arcsec): {round(seeing,5)} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {fhigh}')
-    if verb: print(f'Screen size (meters): {2 * ngrid * pixel} \n Pixel size (meters): {pixel}')
+    if verb: print(f'Seeing (arcsec): {seeing:.5f} arcsec \n Layers at [{zlow}, {zhigh}] meters with high fraction {fhigh:.2f}')
+    if verb: print(f'Screen size (meters): {2 * ngrid * pixel} \n Pixel size (meters): {pixel:.2f}')
     
     # Circular image shifts
     if jitter > 0:
         omega = (3.3 / niter) * (2 * np.pi)  # angular frequency
     
     starph = photon_budget(starmag, texp, d, eps)
-    if verb: print(f'Stellar photons per exposure and Star Magnitude: {round(starph,2),starmag}')
+    if verb: print(f'Stellar photons per exposure and Star Magnitude: {starph:.2f}, {starmag}')
     if verb: print(f'Readout noise (e-): {ron}')
     if verb: print(f'Jitter = {jitter}')
     
     # Prepare the aperture mask
     apert, r, radpix = make_aperture(nap, d, pixel, ksamp, eps)
     if display:
-        print(f'radpix: ({d} * 0.5) / {pixel}) * {ksamp} = {radpix} \n n inside: {np.sum(apert)}')
-        save_image(apert, f'Debug Aperture Mask (nap={nap}, radpix={round(radpix,2)})',
-                         'aperture_mask.jpg')
+        print(f'Pixel radius: ({d} * 0.5) / {pixel}) * {ksamp} = {radpix} \n Amount of pixels inside: {np.sum(apert)}')
+        save_image(apert, f'Debug Aperture Mask (nap={nap}, radpix={round(radpix,2)})', 'aperture_mask.jpg')
     
     # Add defocus and spherical, a4 negative for intrafocal
     tmp, a4, a11 = defocus_phase(d, wavelen, pdist, r, radpix)
     if verb: print(f'Nominal a4, a11 [rad]: {a4:}, {a11}')
     if display:
-        save_image(tmp, f'Debug Zernike applied (nap={nap}, radpix={round(radpix/ksamp, 2)})',
-                         'zernike.jpg', log=True)
+        save_image(tmp, f'Debug Zernike applied (nap={nap}, radpix={round(radpix/ksamp, 2)})', 'zernike.jpg', log=True)
     
     # Undistorted image
     fresnel = np.exp(1j * tmp) * apert
@@ -215,7 +213,6 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     if verb: print(f'True ring radius [pix]: {rring}')
     if verb: print(f'True ring radius [arcsec]: {(rring * asperpix)}')
-    if verb: print(f'rring / ksamp {rring / ksamp}')
     
     # Cube for loop
     cube = np.zeros((niter, nccd, nccd), dtype=np.float64)
@@ -319,7 +316,6 @@ def ringsim(d, effl, eps, pdist, pixsize, texp=1e-3, tacc=1, ron=0, gain=0,
     
     if display:
         save_image(imav, 'Debug image average', 'imaverage.jpg', colorbar=False)
-        print(f'nap {nap} \n nccd {nccd} \n npixperpix {npixperpix} \n radpix {radpix}')
         
     filename = write_fits_cube(cube, d, effl, eps, pdist, wavelen, texp, ron,
                                gain, starmag, seeing, nccd, pixel, asperpix)
@@ -343,12 +339,15 @@ def average_screens(screen, nblur):
     return screen
 
 
-def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
+def compute_ring_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
                      tacc, d, eps, pdist, oversamp, verb=True):
     
     '''
     Calculates the geometry of the ring and camera, and defines
     parameters for how the ring will move in the main loop
+
+    ToDo: Re-specify what is d1 and d2
+    ToDo: Re-specify what is HR
 
     Args:
         ngrid: Half-size of the atmosphere grid, pixels.
@@ -393,13 +392,10 @@ def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
     if verb: print(f'Total iterations to simulate: {niter}\n')
     
     nap = math.floor(ngrid / 2)
-    if verb: print(f'Aperture grid, pixels: {nap}')
+    if verb: print(f'Aperture grid: {nap} pixels')
     
     d1 = wavelen / pixscale * 206265
-    if verb: print(f'd1: {d1}')
-    
     d2 = wavelen / pixel * 206265
-    if verb: print(f'd2: {d2}')
     
     if oversamp: npixperpix = 2 ** (math.floor(math.log2(1.5 * d / d1)) + 1)
     else: npixperpix = 1
@@ -421,7 +417,7 @@ def compute_geometry(ngrid, pixel, pixsize, effl, wavelen, r0, wind, texp,
     if verb: print(f'Re-sampled pixel size [m]: {pixel / ksamp:.6e}')
     if verb: print(f'CCD size & pixel [arcsec]: {nccd}, {asperpix}')
     if verb: print(f'Nominal ring radius [pix, arcsec]: {rradiuspix:.3f}, {rradiuspix * asperpix:.3f}')
-    if verb: print(f'HR [unit?]: {HR}')
+    if verb: print(f'HR (alpha): {HR}')
     
     if ccdbin < 1.0:
         if verb: print(f'Warning: fine grid {finepix:.4f} arcsec/pix is coarser than the '
@@ -442,7 +438,7 @@ def photon_budget(starmag, texp, d, eps, BW=0.26, phot_con=1e11):
     the atmosphere, scaled by the star magnitude, exposure time,
     effective bandwidth and the annular collecting area. 
 
-    Where does it come from???
+    ToDo: Revisit formula, cite source
 
     Args:
         starmag: Star magnitude.
@@ -472,7 +468,9 @@ def make_aperture(nap, d, pixel, ksamp, eps):
 
 
 def defocus_phase(d, wavelen, pdist, r, radpix):
-    '''Applies main Zernike aberrations [a4, a11]'''
+    '''
+    Applies main Zernike aberrations [a4, a11]
+    '''
     a4 = (d ** 2 / (wavelen * pdist)) * (np.pi / (8 * np.sqrt(3)))
     a11 = -0.1 * a4
     rho = r / radpix

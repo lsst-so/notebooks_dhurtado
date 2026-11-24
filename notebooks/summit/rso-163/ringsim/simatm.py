@@ -71,6 +71,8 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     creates the 2D atmosphere simulation, then stores it
     in a .npz (numpy) file.
 
+    ToDo: Add units to values
+
     Args:
         pixel: Grid sampling, meters per grid pixel (not arcsec).
         r0: Fried parameter from the seeing, meters.
@@ -95,8 +97,8 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     
     size = 2 * ngrid * pixel
     
-    if verb: print('Simulating atmosphere')
-    if verb: print(f'With size: {size} \n ngrid: {ngrid}')
+    if verb: print(f'Simulating atmosphere \n Size: {size} meters and ngrid: {ngrid*2}\u00b2 pixels')
+    
     
     tint0 = (r0 ** (-5 / 3)) / 0.423 * ((0.5 * wavelen / np.pi) ** 2) # Turbulence integral in meters^1/3
     see = (tint0 / 6.83e-13) ** (0.6)
@@ -106,9 +108,9 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     r0high = find_fried_parameter(wavelen,tinthigh) # Fried param for high layer
     r0low =  find_fried_parameter(wavelen,tintlow )  # Fried param for low layer
     
-    if verb: print(f'Grid size (meters): {size} \n Fried parameters (meters) [low, high]: [{r0low, r0high}]')
+    if verb: print(f'Starting seeing : {see}"')
+    if verb: print(f'Fried parameters (meters) [low, high]: [{r0low, r0high}]')
     if verb: print(f'Integrals (meters^1/3) [low, high]: [{tintlow, tinthigh}] \n Altitudes (meters) {zlow, zhigh}')
-    if verb: print(f'Seeing (arcsec): {see}')
     
     # For phase simulations
     if fhigh != 0:
@@ -172,7 +174,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
     rytov = 19.22 * (wavelen ** (-7 / 6)) * ((zlow ** (5 / 6)) * tintlow + (zhigh**(5 / 6)) * tinthigh)
     intensity = np.abs(screen) ** 2
     
-    if verb: print(f'Rytov variance, scintillation: {rytov}, {scint}')
+    if verb: print(f'Rytov variance and scintillation: {rytov}, {scint}')
     
     if display:
         # Robust colorbar limits (1st/99th pct) so bright/dark speckles don't wash out the scale
@@ -181,7 +183,7 @@ def simatm(pixel, r0, wavelen=0.6e-6, ngrid=512, zlow=500, zhigh=10500,
         plt.figure(figsize=(7, 7))
         im = plt.imshow(intensity, cmap='PuOr', origin='lower',
                         norm=colors.LogNorm(vmin=vmin, vmax=vmax))
-        plt.title('Simulated atmosphere')
+        plt.title(f'Simulated atmosphere (real size: {2*ngrid}\u00b2 pixels, {size} meters)')
         plt.colorbar(im, location='right', shrink=0.7, extend='both')  # arrows flag clipped values
         plt.tight_layout()
         plt.ylim(0,256)

@@ -128,7 +128,6 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
         z0, prof, see (total), fsee (free-atm), see2 (sector), wind,
         erms, totvar, tau0, theta0.
     '''
-    if verb: print(data['image']['impar'])
     
     var =      data['moments']['var']  # variance of a-coefficients
     cov =      data['moments']['cov']  # covariance of a-coefficients
@@ -141,7 +140,7 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
     texp =     par['telescope']['texp']  # exposure time [s], from the FITS header
     
     cosz = np.cos(zen / 180 * np.pi)  # cos(z)
-    mmax = 17  # hard-coded number of terms to use, from original code
+    mmax = 18 # hard-coded number of terms to use, from original code
     seeconst = 6.83e-13  # integral for 1' seeing at 500nm
     
     # Prepare weights and interpolate to the Z0 grid, trim to mmax
@@ -169,23 +168,23 @@ def restore_profile(par, data, weight, zmat, display=True, verb=True):
         plt.figure(figsize=(8, 5))
         m_hi, m_mid = 5, 11                               # high|mid and mid|low splits
         
-        plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.3, label=r'High layer (low $\mathtt{m}$)')
-        plt.axvspan(m_mid, mmax, color='xkcd:pale yellow', alpha=0.3, label=r'Low layer (high $\mathtt{m}$)')
-        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12), color='xkcd:fire engine red', alpha=0.12, label=r'$\mathtt{var-cov}$ (wind)')
+        plt.axvspan(0, m_hi, color='xkcd:pale blue', alpha=0.7, label=r'High layer (low $\mathtt{m}$)')
+        plt.axvspan(m_mid, mmax+1, color='xkcd:pale yellow', alpha=0.7, label=r'Low layer (high $\mathtt{m}$)')
+        plt.fill_between(mfull, np.maximum(covr, 1e-12), np.maximum(varr, 1e-12), color='xkcd:fire engine red', alpha=0.15, label=r'$\mathtt{var-cov}$ (wind)')
 
         plt.semilogy(mfull, np.maximum(varr, 1e-12), color='xkcd:black', marker='s', ls='-', label=r'Power ($\mathtt{var}$)')
         plt.semilogy(mfull, np.maximum(covr, 1e-12), color='xkcd:vermillion', marker='o',ls='-', label=r'Covariance ($\mathtt{cov}$)')
-        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt blue', ls=':', label=r'Noise ($\mathtt{anoise}$)')
+        plt.axhline(max(anoise, 1e-12), color='xkcd:cobalt', ls=':', label=r'Noise ($\mathtt{anoise}$)')
         #plt.errorbar(marg, varz, yerr=anoise, fmt='s', capsize=3, color='xkcd:black', alpha=1, label='Noise bias') # noise/saturation-corrected power
         #plt.semilogy(marg, varmod, ls='--', color='xkcd:neon purple', alpha=0.3, label='Powmod (varmod)')  # model fit
         
         plt.yscale('log')
-        plt.xlabel('m', fontsize=13)
-        plt.ylabel('Power', fontsize=13)
+        plt.xlabel('Azimuthal order (Mode layers)', fontsize=13)
+        plt.ylabel('Power (Mode variance)', fontsize=13)
         plt.xlim(0, mmax)
-        plt.xticks(np.arange(0, mmax + 1))
+        plt.xticks(np.arange(0, mmax+1))
         plt.ylim(1e-6, 1e-2)
-        plt.title('Angular spectrum') 
+        plt.title(rf'Angular power spectrum ($\mathtt{{mmax={mmax}}}$)')
         plt.legend(loc='lower left')
         plt.grid(True, which='both', alpha=0.3)
         plt.savefig(os.path.join('images', 'angular_power_spectrum.jpg'), dpi=300, format='jpg')
@@ -316,7 +315,7 @@ def noise_bias(data, par, verb=True):
     eladu = 1 # sim counts photo-electrons directly (gain=0 in sim1.par => ADU == electrons); was 0.3 for a real gain=200 camera
     noisepar = data['image']['noisepar']  # list of 4 numbers
     fluxadu = float(data['image']['impar']['flux'])
-    if verb: print(f'Fluxadu: {fluxadu}')
+    if verb: print(f'ADU Flux: {fluxadu:.2f}')
     flux = eladu * fluxadu  # flux in electrons
     
     anoise = float(noisepar[0]) / flux + float(noisepar[1]) * pow(par['telescope']['ron'] / flux, 2)  # noise variance of a-coef
